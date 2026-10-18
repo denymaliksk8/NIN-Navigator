@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editor Jalur & Gerbang — NIN Navigator</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+ html,body{margin:0;height:100%;font:14px system-ui,sans-serif;background:#0f172a;color:#e2e8f0}
+ #map{position:absolute;inset:0}
+ #bar{position:absolute;z-index:1000;top:8px;left:8px;right:8px;max-width:760px;max-height:80vh;overflow:auto;background:#0f172af0;border:1px solid #ffffff30;border-radius:12px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+ button,select,input{font:inherit;font-size:13px}
+ button{background:#14b8a6;color:#04201c;border:0;border-radius:8px;padding:7px 11px;font-weight:700}
+ button.g{background:#ffffff1f;color:#e2e8f0} button.r{background:#ef4444;color:#fff} button.on{outline:2px solid #fbbf24} button:disabled{opacity:.4}
+ select,input[type=text],input[type=number]{background:#020617;color:#e2e8f0;border:1px solid #ffffff30;border-radius:8px;padding:6px}
+ #st{flex-basis:100%;font-size:12px;color:#94a3b8} #val{flex-basis:100%;font-size:12px;display:none;border-radius:8px;padding:6px 8px;background:#ffffff10}
+ #val .e{color:#fca5a5} #val .w{color:#fcd34d} #val .o{color:#86efac}
+ textarea{width:100%;height:120px;font:11px monospace;background:#020617;color:#e2e8f0;border:1px solid #ffffff30;border-radius:8px}
+ #out{display:none;flex-basis:100%} .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%}
+ .arr{color:#fff;font-size:15px;text-shadow:0 0 3px #000;line-height:1} .gate{background:#f59e0b;color:#000;font-weight:800;font-size:11px;border-radius:11px;padding:2px 7px;white-space:nowrap}
+</style></head><body>
+<div id="map"></div>
+<div id="bar">
+  <div class="row">
+    <button id="bNew">＋ Jalur baru</button><button id="bUndo" class="g">↶ Urungkan</button><button id="bRedo" class="g">↷ Ulangi</button>
+    <button id="bGps" class="g">◎ Titik GPS</button><button id="bDel" class="r">Hapus jalur</button>
+    <button id="bGate" class="g">⛩ GATE</button><button id="bPoly" class="g">⬠ Batas kawasan</button>
+  </div>
+  <div class="row" id="attr">
+    <label>Satu arah <select id="aOw"><option value="0">dua arah</option><option value="1">searah urutan titik →</option><option value="-1">berlawanan urutan ←</option></select></label>
+    <label>Moda <select id="aMo"><option value="">semua</option><option value="mobil">mobil</option><option value="jalan_kaki">jalan kaki</option><option value="keduanya">keduanya</option></select></label>
+    <input id="aKc" type="number" min="0" step="1" placeholder="km/jam" style="width:80px"><input id="aNm" type="text" placeholder="Nama jalan" style="width:150px">
+  </div>
+  <div class="row"><button id="bLoad" class="g">Muat roads.csv</button><button id="bSnap" class="g">Sambung ujung ≤1,5 m</button><button id="bVal" class="g">✔ Periksa</button><button id="bExp">⬇ Ekspor</button></div>
+  <div id="st"></div><div id="val"></div>
+  <div id="out"><textarea id="csv" readonly></textarea><div style="font-size:12px;color:#94a3b8">Salin CSV ke tab <b>roads</b> / timpa <code>data/roads.csv</code>. Salin blok <code>gates</code>/<code>areaPolygon</code> ke <code>config.js</code>. Setelah diperiksa, set <code>routing.roadsVerified: true</code>.</div><textarea id="cfg" readonly style="height:90px"></textarea></div>
+</div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="config.js"></script><script src="js/routing.js"></script><script src="js/graph.js"></script><script src="js/pathmodel.js"></script>
+<script>
+(function(){
+ if(!window.L){ document.body.insertAdjacentHTML('afterbegin','<p style="padding:16px">Pustaka peta belum terpasang. Jalankan tools/setup_offline.py.</p>'); return; }
+ var PM = NIN.pathmodel, CFG = window.BOS_CONFIG || {};
+ var map = L.map('map',{zoomControl:true}).setView([-6.1485,106.8872],18);
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:21,maxNativeZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+ var $ = function(i){return document.getElementById(i)};
+ var S = {roads:[], cur:-1, gates:[], poly:[]};                // seluruh keadaan yang bisa di-undo
+ var mode = 'road', UNITS = [], layers = [], H = PM.History(S), vres = null;
+ var COL = ['#14b8a6','#f59e0b','#a78bfa','#f43f5e','#38bdf8','#84cc16'];
+ function status(m){ $('st').textContent = m; }
+ function commit(){ H.push(S); draw(); }
+ function restore(s){ if(!s) return; S = s; draw(); }
+ function esc(x){ return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+ function draw(){
+  layers.forEach(function(l){map.removeLayer(l)}); layers = [];
+  var add = function(l){ l.addTo(map); layers.push(l); return l; };
+  var bad = vres ? vres.disconnected : [];
+  S.roads.forEach(function(r,i){
+   var disc = bad.indexOf(r.id) >= 0, c = disc ? '#ef4444' : COL[i%COL.length], on = i===S.cur;
+   if(r.pts.length>1) add(L.polyline(r.pts,{color:c,weight:on?6:3,opacity:on?1:.75,dashArray:disc?'4 6':null})).on('click',function(e){L.DomEvent.stop(e); S.cur=i; draw(); sync();});
+   r.pts.forEach(function(p,k){ add(L.circleMarker(p,{radius:on?5:3,color:'#fff',weight:1,fillColor:c,fillOpacity:1})).on('click',function(e){L.DomEvent.stop(e); S.cur=i; draw(); sync();}); });
+   if(r.oneway && r.pts.length>1){                                    // panah arah di tengah tiap ruas (searah urutan titik bila oneway=1)
+    for(var k=1;k<r.pts.length;k++){ var a=r.pts[k-1], b=r.pts[k], m=[(a[0]+b[0])/2,(a[1]+b[1])/2], ang=Math.atan2(b[0]-a[0],(b[1]-a[1])*Math.cos(a[0]*Math.PI/180))*180/Math.PI; if(r.oneway<0) ang+=180;
+     add(L.marker(m,{interactive:false,icon:L.divIcon({className:'',html:'<div class="arr" style="transform:rotate('+(90-ang)+'deg)">➤</div>',iconSize:[16,16],iconAnchor:[8,8]})})); }
+   }
+  });
+  S.gates.forEach(function(g,i){ add(L.marker(g.ll,{icon:L.divIcon({className:'',html:'<div class="gate">GATE '+esc(g.name)+'</div>',iconSize:null,iconAnchor:[20,10]}),draggable:true})).on('dragend',function(e){ var p=e.target.getLatLng(); S.gates[i].ll=[+p.lat.toFixed(6),+p.lng.toFixed(6)]; commit(); }).on('contextmenu',function(){ if(confirm('Hapus gerbang '+g.name+'?')){ S.gates.splice(i,1); commit(); } }); });
+  if(S.poly.length>1) add(L.polygon(S.poly,{color:'#06b6d4',weight:2,dashArray:'6 6',fillOpacity:.05,interactive:false}));
+  S.poly.forEach(function(p,i){ add(L.circleMarker(p,{radius:4,color:'#06b6d4',fillColor:'#06b6d4',fillOpacity:1,weight:1})).on('contextmenu',function(){ S.poly.splice(i,1); commit(); }); });
+  UNITS.forEach(function(u){ var un = vres && vres.unreachable.some(function(x){return x.id===u.id});
+   add(L.circleMarker(u.ll,{radius:un?5:2,color:un?'#ef4444':'#64748b',weight:un?2:1,fillOpacity:.6,interactive:false})); });
+  status((mode==='gate'?'MODE GATE: ketuk peta di gerbang. ':mode==='poly'?'MODE BATAS: ketuk sudut kawasan (klik kanan/tekan lama titik = hapus). ':'')+'Jalur aktif: '+(S.cur>=0?S.roads[S.cur].id+' ('+S.roads[S.cur].pts.length+' titik)':'—')+' · '+S.roads.length+' jalur · '+S.gates.length+' gerbang · batas '+S.poly.length+' titik');
+  $('bUndo').disabled=!H.canUndo(); $('bRedo').disabled=!H.canRedo();
+  $('bGate').classList.toggle('on',mode==='gate'); $('bPoly').classList.toggle('on',mode==='poly');
+ }
+ function sync(){ var r=S.roads[S.cur]; $('attr').style.opacity = r?1:.4; if(!r) return; $('aOw').value=String(r.oneway||0); $('aMo').value=r.moda||''; $('aKc').value=r.kecepatan_kmh||''; $('aNm').value=r.nama_jalan||''; }
+ function newRoad(){ var n=1, ids=S.roads.map(function(r){return r.id}); while(ids.indexOf('jalur'+n)>=0) n++; S.roads.push(PM.newRoad('jalur'+n)); S.cur=S.roads.length-1; commit(); sync(); }
+ var ll = function(e){ return [+e.latlng.lat.toFixed(6),+e.latlng.lng.toFixed(6)]; };
+ map.on('click',function(e){
+  vres = null;
+  if(mode==='gate'){ var n = prompt('Nama gerbang (mis. Gerbang Utara):','Gerbang '+(S.gates.length+1)); if(n===null) return; S.gates.push({id:'gerbang-'+(S.gates.length+1),name:n.trim()||('Gerbang '+(S.gates.length+1)),ll:ll(e)}); mode='road'; return commit(); }
+  if(mode==='poly'){ S.poly.push(ll(e)); return commit(); }
+  if(S.cur<0) newRoad(); S.roads[S.cur].pts.push(ll(e)); commit();
+ });
+ $('bNew').onclick = function(){ mode='road'; newRoad(); };
+ $('bUndo').onclick = function(){ vres=null; restore(H.undo()); sync(); }; $('bRedo').onclick = function(){ vres=null; restore(H.redo()); sync(); };
+ $('bDel').onclick = function(){ if(S.cur>=0 && confirm('Hapus jalur '+S.roads[S.cur].id+'?')){ S.roads.splice(S.cur,1); S.cur=S.roads.length-1; vres=null; commit(); sync(); } };
+ $('bGate').onclick = function(){ mode = mode==='gate'?'road':'gate'; draw(); }; $('bPoly').onclick = function(){ mode = mode==='poly'?'road':'poly'; draw(); };
+ $('aOw').onchange = function(){ var r=S.roads[S.cur]; if(r){ r.oneway=+this.value; commit(); } };
+ $('aMo').onchange = function(){ var r=S.roads[S.cur]; if(r){ r.moda=this.value; commit(); } };
+ $('aKc').onchange = function(){ var r=S.roads[S.cur]; if(r){ r.kecepatan_kmh=Math.max(0,+this.value||0); commit(); } };
+ $('aNm').onchange = function(){ var r=S.roads[S.cur]; if(r){ r.nama_jalan=this.value.trim(); commit(); } };
+ $('bGps').onclick = function(){
+  if(!navigator.geolocation) return status('Perangkat tidak mendukung GPS.');
+  status('Mengambil posisi GPS…');
+  navigator.geolocation.getCurrentPosition(function(p){
+   var pt=[+p.coords.latitude.toFixed(6),+p.coords.longitude.toFixed(6)];
+   if(mode==='gate'){ var n=prompt('Nama gerbang:','Gerbang '+(S.gates.length+1)); if(n===null) return; S.gates.push({id:'gerbang-'+(S.gates.length+1),name:n.trim()||'Gerbang',ll:pt}); mode='road'; }
+   else { if(S.cur<0) newRoad(); S.roads[S.cur].pts.push(pt); }
+   vres=null; commit(); map.panTo(pt); status('Titik GPS ditambahkan (akurasi ±'+Math.round(p.coords.accuracy)+' m). '+(p.coords.accuracy>12?'Akurasi kurang baik — tunggu di tempat terbuka.':''));
+  },function(){ status('Lokasi tidak tersedia / izin ditolak.'); },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+ };
+ $('bLoad').onclick = function(){
+  fetch('data/roads.csv',{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){
+   var r = PM.parseCsv(t); if(!r) return status('Format roads.csv tidak dikenali.');
+   if(S.roads.length && !confirm('Ganti jalur yang sedang digambar dengan roads.csv?')) return;
+   S.roads = r; S.cur = r.length?0:-1; vres=null; commit(); sync();
+   var all=[].concat.apply([],r.map(function(x){return x.pts})); if(all.length) map.fitBounds(L.latLngBounds(all).pad(.1));
+  }).catch(function(){ status('Gagal memuat data/roads.csv.'); });
+ };
+ $('bSnap').onclick = function(){ var z=PM.dropZeroLength(S.roads), n=PM.snapEnds(S.roads,1.5); vres=null; commit(); status(n+' ujung disambung, '+z+' titik nol-panjang dibuang.'); };
+ function check(){
+  vres = PM.validate(S.roads,{Graph:NIN.Graph,mode:'foot',units:UNITS,gates:S.gates.map(function(g){return {id:g.id,name:g.name,ll:g.ll}})});
+  var h = vres.errors.map(function(x){return '<div class="e">✖ '+esc(x)+'</div>'}).concat(vres.warnings.map(function(x){return '<div class="w">⚠ '+esc(x)+'</div>'}));
+  if(!h.length) h=['<div class="o">✔ Semua jalur tersambung dan semua unit terjangkau dari gerbang.</div>'];
+  $('val').innerHTML = h.join(''); $('val').style.display='block'; draw(); return vres;
+ }
+ $('bVal').onclick = check;
+ $('bExp').onclick = function(){
+  PM.dropZeroLength(S.roads); PM.snapEnds(S.roads,1.5); var v=check();
+  if(v.errors.length && !confirm('Ada '+v.errors.length+' kesalahan validasi (lihat panel). Tetap ekspor?')) return;
+  var csv = PM.toCsv(S.roads); $('csv').value = csv; $('out').style.display='block';
+  var g = S.gates.map(function(g){ return "    { id: '"+g.id+"', name: '"+g.name.replace(/'/g,"\\'")+"', lat: "+g.ll[0]+", lng: "+g.ll[1]+", jenis: 'masuk' }"; }).join(',\n');
+  $('cfg').value = '// ISI KOORDINAT GERBANG (tempel ke config.js)\n  gates: [\n'+g+'\n  ],\n  areaPolygon: '+(S.poly.length>2?JSON.stringify(S.poly):'null')+',';
+  try{ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='roads.csv'; a.click(); }catch(_){}
+ };
+ // muat gerbang & batas yang sudah ada di config.js
+ (CFG.gates||[]).forEach(function(g){ if(g && isFinite(g.lat) && g.lat!==null && isFinite(g.lng) && g.lng!==null) S.gates.push({id:g.id,name:g.name,ll:[+g.lat,+g.lng]}); });
+ if(Array.isArray(CFG.areaPolygon)) S.poly = CFG.areaPolygon.map(function(p){return [+p[0],+p[1]]});
+ fetch('data/units.csv').then(function(r){return r.text()}).then(function(t){
+  var rows=t.replace(/\r/g,'').split('\n'), h=rows[0].split(',').map(function(x){return x.trim().toLowerCase()}), a=h.indexOf('lat'), o=h.indexOf('lng'), ii=h.indexOf('id'), ni=h.indexOf('name'), pts=[];
+  rows.slice(1).forEach(function(l){ var c=l.split(','), la=parseFloat(c[a]), lo=parseFloat(c[o]); if(isFinite(la)&&isFinite(lo)){ pts.push([la,lo]); UNITS.push({id:c[ii],name:c[ni],ll:[la,lo]}); } });
+  if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(.1)); draw();
+ }).catch(function(){});
+ H = PM.History(S); draw(); sync();
+ window.__JALUR = {state:function(){return S}, check:check};
+})();
+</script></body></html>

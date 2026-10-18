@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kebijakan Privasi — NIN Navigator</title>
+<style>
+ :root{--bg:#0b1220;--ink:#e2e8f0;--mut:#94a3b8;--card:#111a2e;--line:#ffffff22;--ac:#2dd4bf}
+ @media (prefers-color-scheme:light){:root{--bg:#f8fafc;--ink:#0f172a;--mut:#475569;--card:#fff;--line:#0f172a22;--ac:#0f766e}}
+ :root[data-theme=dark]{--bg:#0b1220;--ink:#e2e8f0;--mut:#94a3b8;--card:#111a2e;--line:#ffffff22;--ac:#2dd4bf}
+ :root[data-theme=light]{--bg:#f8fafc;--ink:#0f172a;--mut:#475569;--card:#fff;--line:#0f172a22;--ac:#0f766e}
+ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,sans-serif}
+ main{max-width:46rem;margin:0 auto;padding:1rem 1rem 4rem} h1{font-size:1.5rem} h2{font-size:1.05rem;margin-top:1.6rem;color:var(--ac)}
+ .bar{display:flex;gap:.5rem;align-items:center;justify-content:space-between;flex-wrap:wrap} a{color:var(--ac)} li{margin:.25rem 0}
+ button{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:.6rem;padding:.45rem .8rem;font-weight:700}
+ button[aria-pressed=true]{background:var(--ac);color:#04121a}.card{background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:.2rem 1rem 1rem}
+ [lang=en]{display:none}.en [lang=id]{display:none}.en [lang=en]{display:block}
+</style></head><body><main id="m">
+<div class="bar"><a href="./">← NIN Navigator</a><span><button id="bi" aria-pressed="true">ID</button> <button id="be" aria-pressed="false">EN</button></span></div>
+
+<div lang="id" class="card"><h1>Kebijakan Privasi</h1>
+<p>Berlaku untuk aplikasi NIN Navigator (web/PWA dan APK) — Kawasan Terpadu Bursa Otomotif Sunter &amp; Cabin Hotel, dioperasikan PT Nuansa Indonusa Niaga. Disusun dengan prinsip UU Pelindungan Data Pribadi (UU No. 27/2022): tujuan jelas, data seminimal mungkin, persetujuan, keamanan, dan hak penghapusan.</p>
+<h2>Data yang diproses</h2><ul>
+<li><b>Lokasi perangkat</b> — dipakai di perangkat Anda untuk menampilkan posisi dan menghitung rute. Tidak dikirim ke server kami, kecuali yang tercantum di bawah dan hanya setelah Anda setuju.</li>
+<li><b>Laporan komunitas</b> (opsional) — jenis laporan, koordinat laporan, tingkat, catatan singkat (≤100 karakter), waktu, serta ID anonim acak (Firebase Anonymous Auth). Tanpa nama, telepon, atau email.</li>
+<li><b>Kecepatan lalu lintas</b> (opsional, hanya bila Anda mengaktifkannya di Pengaturan) — saat bernavigasi dengan mobil/motor, kecepatan Anda dikirim tiap ±15 detik per <i>sel peta ±150 m</i> bersama jendela waktu 10 menit. Tanpa ID, tanpa koordinat tepat, tanpa riwayat lintasan; data digabung (jumlah sampel &amp; jumlah kecepatan) dan dihapus otomatis ±30 menit. Matikan kapan saja di Pengaturan.</li>
+<li><b>Sampel kecepatan anonim</b> (opsional, default mati) — kecepatan dan sel peta (geohash ±150 m), tanpa ID pengguna dan tanpa riwayat lintasan; hanya rata-rata 10 menit yang dipakai.</li>
+<li><b>Permintaan rute/pencarian</b> — koordinat atau teks pencarian dikirim ke layanan pihak ketiga (OpenStreetMap/OSRM/Valhalla/Nominatim/Photon, Esri untuk satelit) agar rute dan hasil dapat ditampilkan. Layanan tersebut melihat alamat IP dan koordinat permintaan sesuai kebijakan masing-masing.</li></ul>
+<h2>Yang tidak kami lakukan</h2><ul><li>Tidak menyimpan riwayat perjalanan/lintasan Anda.</li><li>Tidak mengaitkan ID anonim laporan dengan lokasi sampel kecepatan.</li><li>Tidak menjual data dan tidak memakai iklan/pelacak.</li></ul>
+<h2>Persetujuan &amp; kontrol</h2><ul><li>Izin lokasi diminta oleh perangkat; Anda dapat mencabutnya kapan saja di pengaturan perangkat.</li><li>Pengiriman laporan dan sampel kecepatan memerlukan persetujuan eksplisit yang dapat dicabut; berbagi sampel kecepatan dapat dimatikan di pengaturan aplikasi.</li><li><b>Hapus data saya:</b> di dialog Laporan tekan “Hapus semua laporan saya”. Data lokal (preferensi, cache) hilang saat Anda menghapus data situs/aplikasi.</li></ul>
+<h2>Penyimpanan &amp; keamanan</h2><p>Laporan disimpan di Google Firebase Firestore dan kedaluwarsa otomatis (mis. razia 2 jam, macet 45 menit). Akses dibatasi aturan keamanan server dan autentikasi anonim; kunci web Firebase bersifat publik dan bukan rahasia — perlindungan ada pada aturan server.</p>
+<h2>Penafian</h2><p>Laporan dibuat oleh pengguna dan belum tentu akurat. Rute bersifat perkiraan; patuhi rambu dan hukum lalu lintas. <b>Jangan mengoperasikan aplikasi saat berkendara</b> — gunakan suara atau minta penumpang. Tidak ada jaminan ketersediaan layanan pihak ketiga gratis.</p>
+<h2>Kontak</h2><p>Pengembang: Denny Malik Saputra (Admin Security — PT Nuansa Indonusa Niaga). Pertanyaan atau permintaan penghapusan: hubungi manajemen kawasan/Admin Security.</p></div>
+
+<div lang="en" class="card"><h1>Privacy Policy</h1>
+<p>Applies to the NIN Navigator app (web/PWA and APK) — Kawasan Terpadu Bursa Otomotif Sunter &amp; Cabin Hotel, operated by PT Nuansa Indonusa Niaga. Written along the principles of Indonesia’s Personal Data Protection Law (Law No. 27/2022): clear purpose, data minimisation, consent, security and deletion rights.</p>
+<h2>Data processed</h2><ul>
+<li><b>Device location</b> — used on your device to show your position and compute routes. Not sent to our servers except as listed below and only after you agree.</li>
+<li><b>Community reports</b> (optional) — report type, report coordinates, severity, short note (≤100 chars), time, and a random anonymous ID (Firebase Anonymous Auth). No name, phone or email.</li>
+<li><b>Traffic speed</b> (optional, only if you turn it on in Settings) — while navigating by car/motorbike, your speed is sent about every 15 s per <i>map cell (~150 m)</i> with a 10-minute time window. No ID, no exact coordinates, no trip history; data is merged (sample count &amp; speed sum) and auto-deleted after ~30 minutes. Turn it off any time in Settings.</li>
+<li><b>Anonymous speed samples</b> (optional, off by default) — speed and a map cell (geohash ≈150 m), no user ID and no trajectory history; only 10-minute averages are used.</li>
+<li><b>Route/search requests</b> — coordinates or search text are sent to third-party services (OpenStreetMap/OSRM/Valhalla/Nominatim/Photon, Esri for satellite) to show routes and results. Those services see the IP address and request coordinates under their own policies.</li></ul>
+<h2>What we do not do</h2><ul><li>We do not store your trip history/trajectory.</li><li>We do not link the anonymous report ID with speed-sample locations.</li><li>We do not sell data and use no ads or trackers.</li></ul>
+<h2>Consent &amp; control</h2><ul><li>Location permission is requested by your device; revoke it any time in device settings.</li><li>Sending reports and speed samples needs explicit, revocable consent; speed sharing can be turned off in app settings.</li><li><b>Delete my data:</b> in the Reports dialog tap “Delete all my reports”. Local data (preferences, cache) is removed when you clear site/app data.</li></ul>
+<h2>Storage &amp; security</h2><p>Reports are stored in Google Firebase Firestore and expire automatically (e.g. checkpoint 2 h, traffic jam 45 min). Access is limited by server security rules and anonymous auth; the Firebase web key is public, not secret — protection lies in the server rules.</p>
+<h2>Disclaimer</h2><p>Reports are user-generated and may be inaccurate. Routes are estimates; obey road signs and traffic law. <b>Do not operate the app while driving</b> — use voice or ask a passenger. Free third-party services come with no availability guarantee.</p>
+<h2>Contact</h2><p>Developer: Denny Malik Saputra (Admin Security — PT Nuansa Indonusa Niaga). Questions or deletion requests: contact the estate management / Admin Security.</p></div>
+</main>
+<script>
+ (function(){var m=document.getElementById('m'),bi=document.getElementById('bi'),be=document.getElementById('be');
+  function set(l){m.className=l==='en'?'en':'';document.documentElement.lang=l;bi.setAttribute('aria-pressed',String(l==='id'));be.setAttribute('aria-pressed',String(l==='en'));}
+  var q=new URLSearchParams(location.search).get('lang');var l=q||(navigator.language||'id').slice(0,2);set(l==='en'?'en':'id');
+  bi.onclick=function(){set('id')};be.onclick=function(){set('en')};
+  try{var p=JSON.parse(localStorage.getItem('bos-prefs')||'{}');if(p.theme==='light'||p.theme==='dark')document.documentElement.dataset.theme=p.theme;}catch(e){}})();
+</script></body></html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cek Firebase — NIN Navigator</title>
+<style>
+  :root{color-scheme:dark light;--bg:#0b1220;--fg:#e2e8f0;--mut:#94a3b8;--card:#111a2e;--bd:#24304a;--ok:#34d399;--bad:#f87171;--warn:#fbbf24}
+  @media (prefers-color-scheme:light){:root{--bg:#f1f5f9;--fg:#0f172a;--mut:#475569;--card:#fff;--bd:#cbd5e1;--ok:#047857;--bad:#b91c1c;--warn:#b45309}}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+  main{max-width:42rem;margin:0 auto;padding:16px}
+  h1{font-size:1.3rem;margin:.2rem 0}
+  p.m{color:var(--mut);font-size:.85rem;margin:.3rem 0 1rem}
+  .row{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin:8px 0}
+  .ic{width:1.6rem;flex:none;text-align:center;font-weight:800}
+  .ok .ic{color:var(--ok)}.bad .ic{color:var(--bad)}.warn .ic{color:var(--warn)}
+  .row b{display:block}.row span{color:var(--mut);font-size:.85rem;word-break:break-word}
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14px;background:#2dd4bf;color:#042f2e;cursor:pointer;margin:4px 6px 4px 0}
+  button.s{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+  button:disabled{opacity:.5}
+  code{background:rgba(148,163,184,.18);padding:1px 5px;border-radius:5px;font-size:.85em}
+</style>
+</head>
+<body>
+<main>
+  <h1>Cek koneksi Firebase</h1>
+  <p class="m">Alat bantu pemilik aplikasi: memastikan <code>config.js</code> terisi, Anonymous Auth menyala, dan <code>firestore.rules</code> sudah dipublikasikan. Tidak ada data pribadi yang dikirim; uji tulis memakai satu laporan percobaan di titik (0, 0) yang langsung dihapus.</p>
+  <div>
+    <button id="run">▶ Jalankan cek dasar</button>
+    <button id="write" class="s" disabled>✎ Uji tulis &amp; hapus laporan</button>
+  </div>
+  <div id="out" aria-live="polite"></div>
+  <p class="m" id="note"></p>
+</main>
+<script src="config.js"></script>
+<script src="js/reports.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CFG = window.BOS_CONFIG || {}, FB = CFG.firebase || {}, out = document.getElementById('out'), note = document.getElementById('note');
+  var runBtn = document.getElementById('run'), wBtn = document.getElementById('write'), backend = null;
+  function row(kind, title, detail) {   // textContent saja (tanpa innerHTML)
+    var d = document.createElement('div'); d.className = 'row ' + kind;
+    var i = document.createElement('div'); i.className = 'ic'; i.textContent = kind === 'ok' ? '✓' : kind === 'bad' ? '✗' : '!';
+    var b = document.createElement('div'), t = document.createElement('b'), s = document.createElement('span'); t.textContent = title; s.textContent = detail || '';
+    b.appendChild(t); b.appendChild(s); d.appendChild(i); d.appendChild(b); out.appendChild(d); return d;
+  }
+  var HINT = {
+    'denied': 'Rules menolak. Pastikan isi firestore.rules sudah di-Publish (Firestore → Rules) dan Anonymous Auth aktif.',
+    'quota': 'Kuota harian Spark habis (coba lagi besok). Aplikasi akan memakai cache lokal.',
+    'offline': 'Tidak ada koneksi ke Firestore. Cek internet; pastikan database sudah dibuat (Firestore → Create database).',
+    'voted': 'Sudah menilai.', 'rate': 'Anti-spam: tunggu 30 detik antar laporan.', 'daily': 'Batas 20 laporan/hari tercapai.'
+  };
+  function why(e) { var c = e && (e.code || (e.raw && e.raw.code)) || 'error'; return c + (HINT[c] ? ' — ' + HINT[c] : '') + (e && e.raw && e.raw.message ? ' [' + e.raw.message + ']' : ''); }
+
+  async function run() {
+    out.textContent = ''; wBtn.disabled = true; runBtn.disabled = true; note.textContent = '';
+    try {
+      var f = CFG.features || {};
+      row(f.COMMUNITY_REPORTS ? 'ok' : 'warn', 'Flag COMMUNITY_REPORTS', f.COMMUNITY_REPORTS ? 'true' : 'masih false di config.js → fitur laporan belum tampil di aplikasi. Ubah ke true SETELAH semua cek di bawah hijau.');
+      var miss = ['apiKey', 'authDomain', 'projectId', 'appId'].filter(function (k) { return !FB[k] || /^(\.\.\.|…|ISI|YOUR)/i.test(FB[k]); });
+      if (miss.length) { row('bad', 'Konfigurasi Firebase di config.js', 'Belum diisi: ' + miss.join(', ') + '. Langkah: docs/FIREBASE.md butir 5.'); return; }
+      row('ok', 'Konfigurasi Firebase terisi', 'projectId: ' + FB.projectId);
+      if (FB.authDomain.indexOf(FB.projectId) < 0) row('warn', 'authDomain tidak memuat projectId', 'Biasanya <projectId>.firebaseapp.com — cek salinan config.');
+
+      var base = CFG.firebaseSdk || 'https://www.gstatic.com/firebasejs/10.14.1/', A, Au, F;
+      try { var m = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]); A = m[0]; Au = m[1]; F = m[2]; row('ok', 'SDK Firebase termuat', base); }
+      catch (e) { row('bad', 'SDK Firebase gagal dimuat', 'Cek internet / pemblokir iklan. ' + (e && e.message || '')); return; }
+
+      var app = A.initializeApp(FB, 'cek'), auth = Au.getAuth(app), db = F.getFirestore(app), user;
+      try { user = (await Au.signInAnonymously(auth)).user; row('ok', 'Anonymous Auth berhasil', 'uid anonim: ' + user.uid.slice(0, 6) + '…'); }
+      catch (e) { var code = e && e.code || ''; row('bad', 'Anonymous Auth gagal', code + (code === 'auth/operation-not-allowed' ? ' — aktifkan Authentication → Sign-in method → Anonymous.' : code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.' || /api-key/.test(code) ? ' — apiKey salah salin.' : code === 'auth/unauthorized-domain' ? ' — tambahkan domain ini di Authentication → Settings → Authorized domains.' : '')); return; }
+
+      try { var s = await F.getDocs(F.query(F.collection(db, 'reports'), F.where('geohash', '>=', 'qq'), F.where('geohash', '<=', 'qq'), F.orderBy('geohash'), F.limit(1))); row('ok', 'Baca laporan (list dengan limit) diizinkan', s.size + ' dokumen cocok awalan "qq"'); }
+      catch (e) { row('bad', 'Baca laporan ditolak', why(e)); return; }
+      try { await F.getDocs(F.query(F.collection(db, 'reports'), F.limit(500))); row('bad', 'Rules terlalu longgar', 'Kueri limit 500 seharusnya DITOLAK (rules lama?). Publikasikan ulang firestore.rules terbaru.'); }
+      catch (e) { row('ok', 'Kueri tanpa batas ≤ 200 ditolak (benar)', e && e.code || ''); }
+      try { await F.getDocs(F.collection(db, 'users')); row('bad', 'Rules terlalu longgar', 'Daftar koleksi users seharusnya ditolak.'); }
+      catch (e) { row('ok', 'Daftar koleksi users ditolak (benar)', e && e.code || ''); }
+      row('ok', 'Cek dasar selesai', 'Lanjut: “Uji tulis” untuk memeriksa aturan buat/hapus laporan, lalu uji dua ponsel untuk konfirmasi/sanggah.');
+      wBtn.disabled = false;
+    } catch (e) { row('bad', 'Kesalahan tak terduga', e && e.message || String(e)); }
+    finally { runBtn.disabled = false; }
+  }
+
+  async function writeTest() {
+    wBtn.disabled = true; runBtn.disabled = true;
+    try {
+      var cfg = Object.assign({}, CFG, { firebase: FB });
+      backend = backend || await window.NIN.reports.createBackend(cfg, { onError: function (c) { row('warn', 'Peringatan dari Firestore', c); } });
+      if (backend.mode !== 'firebase') { row('bad', 'Aplikasi jatuh ke mode lokal', 'Firebase gagal diinisialisasi — lihat console (F12) untuk detailnya.'); return; }
+      var id;
+      try { id = await backend.create({ type: 'weather', lat: 0, lng: 0, severity: 1, note: 'uji koneksi' }); row('ok', 'Buat laporan (aturan create + anti-spam) berhasil', 'id: ' + id); }
+      catch (e) { row('bad', 'Buat laporan ditolak', why(e)); return; }
+      try { await backend.remove(id); row('ok', 'Hapus laporan milik sendiri berhasil', 'laporan percobaan sudah dibersihkan'); }
+      catch (e) { row('bad', 'Hapus laporan ditolak', why(e) + ' — hapus manual di Firestore Console bila perlu.'); return; }
+      row('warn', 'Belum bisa dicek otomatis: konfirmasi/sanggah', 'Pemilik tidak boleh menilai laporannya sendiri. Uji dengan dua ponsel/profil peramban berbeda: HP A buat laporan, HP B tekan “Masih ada”/“Sudah tidak ada”.');
+    } catch (e) { row('bad', 'Kesalahan tak terduga', e && e.message || String(e)); }
+    finally { wBtn.disabled = false; runBtn.disabled = false; var u = window.NIN.reports.usage(); note.textContent = 'Pemakaian perangkat ini hari ini: baca ' + (u.reads || 0) + ', tulis ' + (u.writes || 0) + ' (batas Spark per proyek: 50.000 baca / 20.000 tulis).'; }
+  }
+  runBtn.onclick = run; wBtn.onclick = writeTest;
+})();
+</script>
+</body>
+</html>

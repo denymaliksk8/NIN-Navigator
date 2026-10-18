@@ -1,0 +1,1318 @@
+<!doctype html>
+<html lang="id" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NIN Navigator</title>
+<meta name="description" content="Navigasi dan direktori digital Kawasan Terpadu Bursa Otomotif Sunter & Cabin Hotel.">
+<meta name="theme-color" content="#0a1220">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NIN Navigator">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+/* Terapkan preferensi tampilan sebelum halaman digambar (hindari kedipan tema/ukuran huruf). */
+(function(){
+  var p = {}; try{ p = JSON.parse(localStorage.getItem('bos-prefs')||'{}'); }catch(_){}
+  var th = p.theme || 'auto', light = th==='light' || (th==='auto' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+  var h = document.documentElement;
+  h.classList.toggle('light', light); h.classList.toggle('dark', !light);
+  h.style.setProperty('--fs', {n:1, l:1.2, xl:1.4}[p.size] || 1);
+  var lang = p.lang || ((navigator.language||'id').toLowerCase().indexOf('id')===0 ? 'id' : 'en');
+  h.lang = lang;
+  document.querySelector('meta[name=theme-color]').content = light ? '#f3f6fb' : '#0a1220';
+})();
+</script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet/markercluster/MarkerCluster.css">
+<link rel="stylesheet" href="vendor/leaflet/markercluster/MarkerCluster.Default.css">
+<link rel="stylesheet" href="vendor/tailwind.css">
+<style>
+  :root{--bg:#0a1220;--glass:rgba(15,25,45,.72);--line:rgba(255,255,255,.12);--ink:#e8eef8;--fs:1}
+  html{font-size:calc(16px*var(--fs))}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overscroll-behavior:none}
+  button{cursor:pointer}
+  #map{position:absolute;inset:0;background:#0f1a2e}
+  /* laporan komunitas */
+  .rep-pin{width:32px;height:32px;border-radius:9999px;display:grid;place-items:center;font-size:17px;color:#fff;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+  .rep-types{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
+  .rep-types button{display:flex;flex-direction:column;align-items:center;gap:.15rem;border-radius:.75rem;border:1px solid var(--line);padding:.5rem .25rem;font-size:.7rem;font-weight:700;background:rgba(255,255,255,.06);line-height:1.15;text-align:center}
+  .rep-types button span{font-size:1.3rem}.rep-types button[aria-pressed=true]{background:#14b8a6;color:#04121a;border-color:#14b8a6}
+  .rep-filter button[aria-pressed=false]{opacity:.45}
+  #repCard{position:fixed;left:.75rem;right:.75rem;bottom:calc(env(safe-area-inset-bottom) + 5.5rem);max-width:26rem;margin:0 auto;z-index:1150;border-radius:1rem;padding:.85rem 1rem}
+  #repCard .pc-x{position:absolute;right:.5rem;top:.5rem;width:2rem;height:2rem;border-radius:9999px;background:rgba(255,255,255,.1)}
+  .rc-b{border-radius:.6rem;border:1px solid var(--line);padding:.45rem .7rem;font-weight:700;background:rgba(255,255,255,.08)}.rc-ok{background:#14b8a6;color:#04121a;border-color:#14b8a6}.rc-x{color:#fca5a5}
+  .glass{background:var(--glass);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);border:1px solid var(--line)}
+  .leaflet-container{font-family:inherit}
+  .leaflet-control-zoom{border:none!important;margin-bottom:calc(env(safe-area-inset-bottom) + 14px)!important;margin-right:12px!important}
+  .leaflet-bottom.leaflet-right{transition:transform .3s;transform:translateY(calc(var(--dock0,0px)*-1))}
+  body.sheet-open #legend{display:none}
+  .leaflet-control-zoom a{background:var(--glass)!important;color:var(--ink)!important;border:1px solid var(--line)!important;backdrop-filter:blur(12px)}
+  .leaflet-control-attribution{background:rgba(10,18,32,.7)!important;color:#9fb0c8!important;font-size:.6875rem}
+  .leaflet-control-attribution a{color:#7dd3c8!important}
+  .pin-wrap{display:flex;justify-content:center;align-items:flex-end;padding-bottom:3px}
+  .pin{line-height:0}
+  .pin svg{display:block}
+  .marker-cluster div{font-weight:800}
+  .marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background:#0f766ecc;color:#fff}
+  .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:#14b8a655}
+  #routeBar{display:block}#routeBar.hidden{display:none}
+  .rb-row{display:flex;align-items:center;gap:.5rem}
+  .rb-modes{margin-top:.4rem;gap:.35rem;overflow-x:auto}
+  .rb-modes button{flex:1 0 auto;border-radius:.6rem;padding:.4rem .6rem;font-size:.72rem;font-weight:700;background:rgba(127,127,127,.18);color:inherit;white-space:nowrap}
+  .rb-modes button[aria-pressed=true]{background:#14b8a6;color:#04201c}
+  .rb-link{margin-top:.35rem;font-size:.72rem;font-weight:700;color:#5eead4;text-decoration:underline;background:none}
+  #stepsList{margin-top:.35rem;max-height:34vh;overflow-y:auto;padding:0;list-style:none}
+  #stepsList.hidden{display:none}
+  #stepsList li{display:flex;gap:.55rem;align-items:center;padding:.4rem .2rem;border-top:1px solid rgba(127,127,127,.25);cursor:pointer}
+  #stepsList .si{width:1.5rem;text-align:center;font-size:1.05rem}#stepsList .st{flex:1}#stepsList .sd{white-space:nowrap;opacity:.8;font-size:.72rem}
+  .ab-badge{width:26px;height:26px;border-radius:50%;border:3px solid #fff;color:#fff;font:800 13px/20px system-ui;text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.45)}
+  #mapTools{position:fixed;z-index:1000;right:.75rem;bottom:calc(env(safe-area-inset-bottom) + var(--dock,112px));display:flex;flex-direction:column-reverse;gap:.55rem}
+  #mapTools .tool{width:2.75rem;height:2.75rem;border-radius:9999px;display:grid;place-items:center}#mapTools .tool.hidden{display:none}
+  #btnLayers[aria-pressed=true]{background:#14b8a6}#btnLayers[aria-pressed=true] svg{color:#04201c}
+  #placeCard{position:fixed;z-index:1090;left:.6rem;right:.6rem;max-width:28rem;margin:0 auto;bottom:calc(env(safe-area-inset-bottom) + .6rem);border-radius:1.25rem;padding:.9rem 1rem}
+  #placeCard.hidden{display:none}
+  .pc-x{position:absolute;right:.6rem;top:.5rem;width:2rem;height:2rem;border-radius:9999px;background:rgba(127,127,127,.25)}
+  .pc-name{font-weight:800;font-size:1.02rem;padding-right:2.2rem}.pc-addr{font-size:.76rem;opacity:.75;margin-top:.15rem}
+  .pc-btns{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem}.pc-btns button{flex:1 1 auto;border-radius:.8rem;padding:.65rem .8rem;font-weight:700;font-size:.8rem;background:rgba(127,127,127,.22);color:inherit}
+  .pc-btns .pc-main{background:#14b8a6;color:#04201c;flex-basis:100%;font-size:.95rem;padding:.8rem}
+  #ctxMenu{position:fixed;z-index:1200;min-width:11.5rem;border-radius:.9rem;padding:.3rem;box-shadow:0 8px 28px rgba(0,0,0,.4)}
+  #ctxMenu.hidden{display:none}#ctxMenu button{display:block;width:100%;text-align:left;padding:.65rem .8rem;border-radius:.6rem;font-size:.85rem;font-weight:600;color:inherit}
+  #ctxMenu button:hover{background:rgba(127,127,127,.25)}#ctxMenu .cc{padding:.3rem .8rem .35rem;font-size:.68rem;opacity:.65}
+  .sug-h{padding:.35rem .75rem;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.6}
+  .alt-line{cursor:pointer}
+  #btnCompass svg{transition:transform .08s linear}#btnFollow.on{background:#14b8a6}#btnFollow.on svg{color:#04201c}
+  .pin-sel{animation:bob .9s ease-in-out infinite alternate}
+  @keyframes bob{to{transform:translateY(-5px)}}
+  .me-dot{width:16px;height:16px;border-radius:50%;background:#22d3ee;border:3px solid #fff;box-shadow:0 0 0 6px rgba(34,211,238,.28)}
+  #sheet{transform:translateY(110%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+  #sheet.open{transform:translateY(0)}
+  .chip{white-space:nowrap;transition:all .15s}
+  .chip.active{background:#14b8a6;color:#04121a;border-color:#14b8a6}
+  .scroll-x{scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
+  .toast{animation:tin .3s ease-out}
+  @keyframes tin{from{opacity:0;transform:translateY(-8px)}}
+  .logo-chip{background:#fff;border-radius:10px;padding:3px 7px;display:flex;align-items:center}
+  .logo-img{height:32px;width:auto}
+  @media (min-width:640px){.logo-img{height:40px}}
+  mark{background:transparent;color:#5eead4;font-weight:700}
+  dialog{border:none;padding:0;background:transparent;max-width:100vw;max-height:100dvh;color:var(--ink)}
+  dialog::backdrop{background:rgba(3,8,18,.7);backdrop-filter:blur(4px)}
+  #navDlg a{display:block;text-decoration:none}
+  .seg{display:flex;gap:.375rem}
+  .seg button{flex:1;border-radius:.75rem;border:1px solid var(--line);padding:.6rem .5rem;font-weight:700;font-size:.875rem;background:rgba(255,255,255,.06)}
+  .seg button[aria-pressed=true]{background:#14b8a6;color:#04121a;border-color:#14b8a6}
+  :focus-visible{outline:3px solid #facc15;outline-offset:2px}
+
+  /* ---------- MODE TERANG (kontras tinggi untuk di bawah matahari) ---------- */
+  html.light{--bg:#f3f6fb;--glass:rgba(255,255,255,.92);--line:rgba(15,23,42,.22);--ink:#0f172a}
+  html.light #map,html.light .leaflet-container{background:#e5e9f0}
+  html.light .text-slate-200,html.light .text-slate-300{color:#1e293b}
+  html.light .text-slate-400,html.light .text-slate-500{color:#475569}
+  html.light .text-teal-300{color:#0f766e}
+  html.light .text-amber-300{color:#92400e}
+  html.light .text-emerald-300{color:#047857}
+  html.light .text-sky-300{color:#0369a1}
+  html.light mark{color:#0f766e}
+  html.light .bg-white\/5{background:rgba(15,23,42,.06)}
+  html.light .bg-white\/10{background:rgba(15,23,42,.08)}
+  html.light .bg-white\/15{background:rgba(15,23,42,.1)}
+  html.light .bg-white\/20{background:rgba(15,23,42,.14)}
+  html.light .hover\:bg-white\/10:hover{background:rgba(15,23,42,.1)}
+  html.light .hover\:bg-white\/20:hover{background:rgba(15,23,42,.16)}
+  html.light .bg-black\/40,html.light .hover\:bg-black\/60:hover{background:rgba(255,255,255,.9);color:#0f172a}
+  html.light .border-white\/10,html.light .border-white\/15{border-color:rgba(15,23,42,.2)}
+  html.light .divide-white\/10>:not(:last-child){border-color:rgba(15,23,42,.16)}
+  html.light .placeholder\:text-slate-400::placeholder,html.light .placeholder\:text-slate-500::placeholder{color:#64748b}
+  html.light .bg-slate-500\/30{background:rgba(71,85,105,.18)}
+  html.light .bg-white\/5.border-dashed{border-color:rgba(15,23,42,.3)}
+  html.light .leaflet-control-attribution{background:rgba(255,255,255,.85)!important;color:#334155!important}
+  html.light .leaflet-control-attribution a{color:#0f766e!important}
+  html.light .glass{box-shadow:0 2px 10px rgba(15,23,42,.12)}
+  html.light .seg button{background:rgba(15,23,42,.05)}
+  /* Performa HP: blur di atas peta yang bergerak adalah penyebab utama lag saat zoom → matikan di layar sentuh, ganti latar lebih pekat */
+  @media (pointer:coarse),(max-width:768px){
+    .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(15,25,45,.93)}
+    html.light .glass{background:rgba(255,255,255,.96)}
+    .leaflet-control-zoom a{backdrop-filter:none!important}
+    dialog::backdrop{backdrop-filter:none;background:rgba(3,8,18,.82)}
+    .pin-sel{animation:none}
+  }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<div id="map" aria-label="Peta kawasan" data-i18n-aria="map.aria"></div>
+
+<!-- HEADER -->
+<header class="fixed top-0 inset-x-0 z-[1000] p-2.5 sm:p-3 pt-[calc(env(safe-area-inset-top)+10px)] pointer-events-none">
+  <div class="glass rounded-2xl pointer-events-auto max-w-3xl mx-auto">
+    <div class="px-3 pt-2 text-xs font-extrabold tracking-wide flex items-center gap-1.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-teal-400"></span>NIN Navigator</div>
+    <div class="flex flex-wrap items-center justify-end gap-2 px-3 py-2">
+      <div class="flex items-center gap-1.5 shrink-0 mr-auto">
+        <div class="logo-chip"><img src="logo-bos.png" alt="Bursa Otomotif Sunter" class="logo-img object-contain" onerror="this.replaceWith(Object.assign(document.createElement('b'),{className:'text-slate-900 text-sm',textContent:'BOS'}))"></div>
+        <div class="logo-chip"><img src="logo-cabin.png" alt="Cabin Hotel" class="logo-img object-contain" onerror="this.replaceWith(Object.assign(document.createElement('b'),{className:'text-orange-600 text-sm',textContent:'cabin'}))"></div>
+      </div>
+      <button id="btnSec" class="hidden glass rounded-xl px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-white/10" title="Mode security">🛡 <span class="hidden sm:inline">Pos</span></button>
+      <button id="btnPref" class="glass rounded-xl px-3 py-2 text-xs font-bold hover:bg-white/10" data-i18n-aria="pref.btn" data-i18n-title="pref.btn" aria-haspopup="dialog">Aa</button>
+      <button id="btnDenah" class="glass rounded-xl px-3 py-2 text-xs font-semibold hover:bg-white/10" data-i18n-aria="denah.btn" data-i18n-title="denah.btn">🗺 <span class="hidden sm:inline" data-i18n="denah.btn">Denah</span></button>
+      <button id="btnAbout" class="glass rounded-xl px-3 py-2 text-xs font-semibold hover:bg-white/10" data-i18n-aria="about.btn">ⓘ <span class="hidden sm:inline" data-i18n="about.btn">Tentang Aplikasi</span></button>
+    </div>
+    <div class="px-3 pb-2 relative">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" autocomplete="off" enterkeyhint="search" data-i18n-ph="search.ph" data-i18n-aria="search.aria"
+          class="w-full rounded-xl bg-white/10 border border-white/15 pl-9 pr-9 py-2.5 text-sm placeholder:text-slate-400 outline-none focus:border-teal-400 focus:bg-white/15">
+        <button id="qClear" class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full text-slate-300 hover:bg-white/10" aria-label="Hapus" data-i18n-aria="clear">✕</button>
+      </div>
+      <ul id="suggest" class="hidden glass absolute left-3 right-3 top-full mt-1 rounded-xl overflow-y-auto max-h-[52vh] divide-y divide-white/10 shadow-2xl"></ul>
+    </div>
+    <div id="chips" class="scroll-x flex gap-2 overflow-x-auto px-3 pb-3"></div>
+  </div>
+  <div id="routeBar" class="hidden glass rounded-xl max-w-3xl mx-auto mt-2 px-3 py-2 pointer-events-auto text-xs sm:text-sm">
+    <div class="rb-row">
+      <span id="routeBarText" class="flex-1 min-w-0 font-semibold"></span>
+      <button id="routeClear" class="shrink-0 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-2 text-xs font-bold" data-i18n="route.clear">✕ Hapus rute</button>
+    </div>
+    <div class="rb-row rb-modes" id="modeRow" role="group" data-i18n-aria="mode.aria" aria-label="Moda perjalanan">
+      <button data-mode="foot" aria-pressed="true">🚶 <span data-i18n="mode.foot">Jalan kaki</span></button>
+      <button data-mode="bike" aria-pressed="false">🚲 <span data-i18n="mode.bike">Sepeda</span></button>
+      <button data-mode="motor" aria-pressed="false">🏍 <span data-i18n="mode.motor">Motor</span></button>
+      <button data-mode="car" aria-pressed="false">🚗 <span data-i18n="mode.car">Mobil</span></button>
+    </div>
+    <div class="rb-row rb-modes" id="critRow" role="group"><button data-crit="fastest" aria-pressed="true">⚡ <span data-i18n="crit.fast">Tercepat</span></button><button data-crit="shortest" aria-pressed="false">📏 <span data-i18n="crit.short">Terpendek</span></button></div>
+    <div class="rb-row rb-modes" id="altRow" role="group"></div>
+    <button id="navStart" type="button" class="nv-start" data-i18n="nav.start">▶ Mulai navigasi</button>
+    <div class="rb-row" style="gap:1rem"><button id="stepsToggle" class="rb-link" aria-expanded="false" aria-controls="stepsList" data-i18n="steps.show">Lihat langkah</button><button id="routeShare" class="rb-link" data-i18n="route.share">Bagikan rute</button></div>
+    <ol id="stepsList" class="hidden"></ol>
+  </div>
+  <div id="toasts" class="max-w-3xl mx-auto mt-2 space-y-2 pointer-events-none" role="status" aria-live="polite"></div>
+</header>
+
+<!-- Tombol peta (kolom kanan bawah) -->
+<div id="mapTools">
+  <button id="btnGps" class="glass tool" aria-label="Lokasi saya" data-i18n-aria="gps" data-i18n-title="gps">
+    <svg class="w-5 h-5 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+  </button>
+  <button id="btnHome" class="glass tool" aria-label="Kembali ke BOS" data-i18n-aria="btn.home" data-i18n-title="btn.home">
+    <svg class="w-5 h-5 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+  </button>
+  <button id="btnLayers" class="glass tool" aria-label="Ganti layer peta" data-i18n-aria="btn.layers" data-i18n-title="btn.layers" aria-pressed="false">
+    <svg class="w-5 h-5 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+  </button>
+  <button id="btnReport" class="glass tool hidden" aria-label="Lapor" data-i18n-aria="rep.btn" data-i18n-title="rep.btn">
+    <svg class="w-5 h-5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></svg>
+  </button>
+  <button id="btnLastRoute" class="glass tool hidden" aria-label="Tampilkan rute terakhir" data-i18n-aria="route.last" data-i18n-title="route.last">
+    <svg class="w-5 h-5 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+  </button>
+  <button id="btnCompass" class="glass tool hidden" aria-label="Kompas: ketuk untuk menghadap utara" data-i18n-aria="compass.aria">
+    <svg class="w-6 h-6" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l4 10H8z" fill="#ef4444"/><path d="M12 22l-4-10h8z" fill="#94a3b8"/><circle cx="12" cy="12" r="1.6" fill="#fff"/></svg>
+  </button>
+  <button id="btnFollow" class="glass tool hidden" aria-pressed="false" aria-label="Ikuti arah" data-i18n-aria="follow.aria">
+    <svg class="w-5 h-5 text-teal-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l7 19-7-4-7 4z"/></svg>
+  </button>
+</div>
+
+<!-- Kartu tempat (hasil pencarian umum / titik yang diketuk lama) -->
+<section id="placeCard" class="glass hidden" aria-live="polite">
+  <button id="placeClose" class="pc-x" aria-label="Tutup" data-i18n-aria="close">✕</button>
+  <div id="placeName" class="pc-name"></div>
+  <div id="placeAddr" class="pc-addr"></div>
+  <div class="pc-btns">
+    <button id="placeTo" class="pc-main" data-i18n="place.routeTo">Rute ke sini</button>
+    <button id="placeFrom" data-i18n="place.startHere">Mulai dari sini</button>
+    <button id="placeCopy" data-i18n="place.copy">Salin koordinat</button>
+    <button id="placePano" data-i18n="btn.pano">Lihat 360°</button>
+  </div>
+</section>
+<div id="ctxMenu" class="glass hidden" role="menu"></div>
+
+<!-- Legend -->
+<div id="legend" class="glass fixed z-[999] left-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] rounded-xl px-3 py-2 text-xs leading-5 space-y-0.5">
+  <div><i class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></i><span data-i18n="cat.showroom">Showroom</span></div>
+  <div><i class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 mr-1.5"></i><span data-i18n="cat.workshop">Workshop</span></div>
+  <div><i class="inline-block w-2.5 h-2.5 rounded-full bg-purple-500 mr-1.5"></i><span data-i18n="cat.detailing">Detailing</span></div>
+  <div><i class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 mr-1.5"></i><span data-i18n="cat.hotel">Cabin Hotel</span></div>
+  <div class="text-slate-400 pt-0.5" data-i18n="legend.faded">Pin pudar = posisi perkiraan</div>
+</div>
+
+<!-- BOTTOM SHEET -->
+<section id="sheet" class="fixed z-[1100] inset-x-0 bottom-0 mx-auto max-w-md p-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)]" aria-live="polite">
+  <div class="glass rounded-3xl overflow-hidden shadow-2xl relative">
+    <div class="flex justify-center pt-2"><div class="w-10 h-1 rounded-full bg-white/30"></div></div>
+    <button id="sheetClose" class="absolute right-4 top-3 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 z-10" aria-label="Tutup" data-i18n-aria="close">✕</button>
+    <div id="sheetBody" class="p-4 pt-3 overflow-y-auto max-h-[calc(68dvh-2rem)]"></div>
+  </div>
+</section>
+
+<!-- PREFERENSI TAMPILAN -->
+<dialog id="prefDlg" aria-labelledby="prefTitle">
+  <div class="glass rounded-3xl w-[min(92vw,26rem)] p-5 text-sm">
+    <div class="flex justify-between items-center">
+      <h2 id="prefTitle" class="text-lg font-extrabold" data-i18n="pref.title">Tampilan</h2>
+      <button class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20" onclick="prefDlg.close()" aria-label="Tutup" data-i18n-aria="close">✕</button>
+    </div>
+    <div class="mt-4">
+      <div class="text-slate-300 font-semibold mb-1.5" data-i18n="pref.size">Ukuran huruf</div>
+      <div class="seg" data-pref="size" role="group" aria-label="Ukuran huruf" data-i18n-aria="pref.size">
+        <button data-v="n" style="font-size:.875rem">A</button>
+        <button data-v="l" style="font-size:1.05rem">A</button>
+        <button data-v="xl" style="font-size:1.25rem">A</button>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="text-slate-300 font-semibold mb-1.5" data-i18n="pref.theme">Tema</div>
+      <div class="seg" data-pref="theme" role="group" aria-label="Tema" data-i18n-aria="pref.theme">
+        <button data-v="auto" data-i18n="pref.auto">Otomatis</button>
+        <button data-v="light" data-i18n="pref.light">☀ Terang</button>
+        <button data-v="dark" data-i18n="pref.dark">🌙 Gelap</button>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="text-slate-300 font-semibold mb-1.5" data-i18n="pref.lang">Bahasa</div>
+      <div class="seg" data-pref="lang" role="group" aria-label="Bahasa" data-i18n-aria="pref.lang">
+        <button data-v="id">Indonesia</button>
+        <button data-v="en">English</button>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="text-slate-300 font-semibold mb-1.5" data-i18n="pref.reroute">Reroute otomatis</div>
+      <div class="seg" data-pref="reroute" role="group" aria-label="Reroute otomatis" data-i18n-aria="pref.reroute">
+        <button data-v="auto" data-i18n="pref.rr.auto">Otomatis</button>
+        <button data-v="ask" data-i18n="pref.rr.ask">Tanya dulu</button>
+        <button data-v="off" data-i18n="pref.rr.off">Mati</button>
+      </div>
+      <label class="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" id="prefVoice"> <span data-i18n="pref.turnVoice">Suara belokan &amp; peringatan</span></label>
+      <label id="prefTrafficRow" class="mt-2 flex items-center gap-2 text-xs hidden"><input type="checkbox" id="prefTraffic"> <span data-i18n="pref.traffic">Tampilkan lalu lintas di peta</span></label>
+      <p id="prefTrafficLegend" class="ml-6 text-[11px] text-slate-400 hidden" data-i18n="traffic.legend"></p>
+      <label id="prefProbesRow" class="mt-2 flex items-center gap-2 text-xs hidden"><input type="checkbox" id="prefProbes"> <span data-i18n="pref.probes">Bagikan kecepatan anonim (opsional)</span></label>
+    </div>
+    <button class="mt-5 w-full rounded-xl bg-teal-500 text-slate-950 font-bold py-3" onclick="prefDlg.close()" data-i18n="done">Selesai</button>
+  </div>
+</dialog>
+
+<!-- PILIH APLIKASI NAVIGASI -->
+<dialog id="navDlg" aria-labelledby="navTitle">
+  <div class="glass rounded-3xl w-[min(92vw,24rem)] p-5 text-sm">
+    <div class="flex justify-between items-start gap-2">
+      <div><h2 id="navTitle" class="text-lg font-extrabold" data-i18n="nav.title">Arahkan ke sini</h2>
+        <div id="navUnit" class="text-slate-300 font-semibold mt-0.5"></div></div>
+      <button class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 shrink-0" onclick="navDlg.close()" aria-label="Tutup" data-i18n-aria="close">✕</button>
+    </div>
+    <p class="text-slate-400 text-xs mt-2" data-i18n="nav.pick">Pilih aplikasi navigasi:</p>
+    <div class="grid gap-2 mt-3">
+      <a id="navGoogle" target="_blank" rel="noopener" class="rounded-xl bg-teal-500 text-slate-950 font-bold py-3.5 text-center">🗺️ Google Maps</a>
+      <a id="navWaze" target="_blank" rel="noopener" class="rounded-xl bg-sky-500 text-slate-950 font-bold py-3.5 text-center">🚗 Waze</a>
+    </div>
+    <p class="text-slate-400 text-xs mt-3" data-i18n="nav.note">Mengarahkan ke lokasi unit lewat jalan umum. Di dalam kawasan, gunakan “Rute di Kawasan”.</p>
+  </div>
+</dialog>
+
+<!-- ABOUT MODAL -->
+<dialog id="about">
+  <div class="glass rounded-3xl w-[min(92vw,30rem)] max-h-[88dvh] overflow-y-auto p-5 sm:p-6 text-sm leading-relaxed">
+    <div class="flex justify-between items-start">
+      <div class="bg-white rounded-xl p-2 inline-block"><img src="logo-nin.png" alt="PT Nuansa Indonusa Niaga" class="h-14 object-contain" onerror="this.replaceWith(Object.assign(document.createElement('b'),{className:'text-slate-900',textContent:'PT Nuansa Indonusa Niaga'}))"></div>
+      <button class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20" onclick="about.close()" aria-label="Tutup" data-i18n-aria="close">✕</button>
+    </div>
+    <h2 class="text-xl font-extrabold mt-4">NIN Navigator</h2>
+    <h3 class="text-teal-300 font-semibold mt-3" data-i18n="about.btn">Tentang Aplikasi</h3>
+    <p class="text-slate-300 mt-1" data-i18n="about.desc">NIN Navigator adalah platform navigasi dan direktori digital interaktif yang dirancang untuk memberikan kemudahan akses, kenyamanan orientasi, serta efisiensi mobilitas bagi seluruh pengunjung, tamu hotel, dan mitra bisnis di Kawasan Terpadu Bursa Otomotif Sunter & Cabin Hotel.</p>
+    <h3 class="text-teal-300 font-semibold mt-4" data-i18n="about.operator.h">🛡️ Penyelenggara & Pengelola Operasional</h3>
+    <p class="text-slate-200 mt-1">PT Nuansa Indonusa Niaga <span class="text-slate-400" data-i18n="about.operator.role">(Security & Facility Management)</span></p>
+    <h3 class="text-teal-300 font-semibold mt-4" data-i18n="about.dev.h">👨‍💻 Inisiator & Pengembang Sistem</h3>
+    <p class="text-slate-200 mt-1">Denny Malik Saputra <span class="text-slate-400" data-i18n="about.dev.role">(Admin Security — PT Nuansa Indonusa Niaga)</span><br>
+      📧 Email: <a class="text-teal-300 underline" href="mailto:Denymaliksaputra@gmail.com">Denymaliksaputra@gmail.com</a></p>
+    <p class="mt-4 rounded-xl bg-white/5 border border-white/10 p-3 text-slate-300" data-i18n="about.note">💡 Aplikasi ini dikembangkan secara mandiri sebagai wujud inisiatif dan komitmen nyata tim pengamanan PT Nuansa Indonusa Niaga dalam menghadirkan pelayanan berbasis teknologi yang proaktif, responsif, serta berorientasi pada kenyamanan dan keamanan kawasan.</p>
+    <div class="mt-3 rounded-xl bg-white/5 border border-white/10 p-3 text-xs text-slate-300 space-y-0.5" aria-label="Versi">
+      <div><b class="text-slate-200" data-i18n="ver.app">Versi aplikasi</b>: <span id="verApp"></span></div>
+      <div><b class="text-slate-200" data-i18n="ver.data">Versi data</b>: <span id="verData" class="font-mono"></span></div>
+      <div class="text-slate-400" id="verSrc"></div>
+    </div>
+    <div id="installBox" class="hidden mt-3 rounded-xl bg-white/5 border border-white/10 p-3 text-xs">
+      <button id="btnInstall" class="hidden w-full rounded-xl bg-teal-500 text-slate-950 font-bold py-3 text-sm" data-i18n="install.btn">📲 Pasang aplikasi di layar utama</button>
+      <p id="installIos" class="hidden text-slate-300" data-i18n="install.ios">Di iPhone/iPad: ketuk tombol Bagikan, lalu “Tambah ke Layar Utama”.</p>
+    </div>
+    <details class="mt-3 text-xs text-slate-400">
+      <summary class="cursor-pointer text-slate-300" data-i18n="about.acc.h">Catatan akurasi data & privasi</summary>
+      <p class="mt-2" data-i18n-html="about.acc.p"></p>
+      <p class="mt-1"><span id="dataStat"></span> <span data-i18n="about.osm">Peta © OpenStreetMap contributors.</span></p>
+      <p class="mt-1"><a class="underline text-teal-300" href="validasi.html" data-i18n="about.check">Periksa data (untuk tim)</a> · <a class="underline text-teal-300" href="jalur.html" data-i18n="about.paths">Gambar jalur (untuk tim)</a></p>
+    </details>
+    <button class="mt-4 w-full rounded-xl bg-teal-500 text-slate-950 font-bold py-3" onclick="about.close()" data-i18n="close">Tutup</button>
+  </div>
+</dialog>
+
+<!-- SECURITY MODE (khusus tim, tetap berbahasa Indonesia) -->
+<dialog id="secDlg">
+  <div class="glass rounded-2xl w-[min(96vw,34rem)] h-[88dvh] flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+      <b class="text-sm text-amber-300">🛡 Mode Security · Cari Cepat</b>
+      <button class="w-9 h-9 rounded-full bg-white/10" onclick="secDlg.close()" aria-label="Tutup">✕</button>
+    </div>
+    <div class="p-3 space-y-2 border-b border-white/10">
+      <input id="secQ" type="search" autocomplete="off" enterkeyhint="search" placeholder="Nama showroom / kode unit (mis. G 9, Starpro)"
+        class="w-full rounded-xl bg-white/10 border border-white/15 px-3 py-3 text-base placeholder:text-slate-400 outline-none focus:border-amber-300">
+      <div class="flex items-center gap-2">
+        <label for="secWa" class="text-xs text-slate-400 shrink-0">WA tujuan</label>
+        <input id="secWa" type="tel" inputmode="tel" autocomplete="off" placeholder="08xx… (kosong = pilih kontak di WhatsApp)"
+          class="flex-1 min-w-0 rounded-lg bg-white/10 border border-white/15 px-2.5 py-1.5 text-xs placeholder:text-slate-500 outline-none focus:border-amber-300">
+      </div>
+    </div>
+    <ul id="secList" class="flex-1 overflow-y-auto divide-y divide-white/10"></ul>
+    <div class="px-4 py-2 border-t border-white/10 flex justify-between text-xs text-slate-400">
+      <span id="secCount"></span>
+      <button id="secExit" class="underline hover:text-slate-200">Keluar mode security</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- DENAH MODAL -->
+<dialog id="denahDlg">
+  <div class="glass rounded-2xl w-[96vw] h-[90dvh] flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-2 border-b border-white/10">
+      <b class="text-sm" data-i18n="denah.title">Denah Bursa Otomotif Sunter</b>
+      <button class="w-9 h-9 rounded-full bg-white/10" onclick="denahDlg.close()" aria-label="Tutup" data-i18n-aria="close">✕</button>
+    </div>
+    <div class="flex-1 overflow-auto bg-white"><img src="denah.png" alt="Denah kawasan" data-i18n-alt="denah.alt" class="max-w-none w-[220%] sm:w-full" loading="lazy"></div>
+  </div>
+</dialog>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script>/* Cadangan darurat: hanya dipakai bila vendor/leaflet belum dipasang (jalankan tools/setup_offline.py sekali). */
+window.L||document.write('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');</script>
+<script src="vendor/leaflet/leaflet-rotate.js"></script>
+<script src="vendor/leaflet/markercluster/leaflet.markercluster.js"></script>
+<script>window.L&&(L.markerClusterGroup||document.write('<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"><link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"><script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"><\/script>'));</script>
+<script src="config.js"></script>
+<script src="validate.js"></script>
+<script src="i18n.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/map.js"></script>
+<script src="js/geocode.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/hybrid.js"></script>
+<script src="js/rotate.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/reports-ui.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/traffic.js"></script>
+<script>
+(async () => {
+'use strict';
+const $ = s => document.querySelector(s);
+const APP_VERSION = '1.10.0';   // samakan dengan VERSION di sw.js
+const V = window.BOSValidate, I18N = window.BOS_I18N;
+let LANG = document.documentElement.lang === 'en' ? 'en' : 'id';
+const t = (k, v) => { let s = (I18N[LANG] && I18N[LANG][k]) ?? I18N.id[k] ?? k; return v ? s.replace(/\{(\w+)\}/g, (m, n) => v[n] ?? '') : s; };
+if(!window.L){
+  document.body.insertAdjacentHTML('beforeend', `<div style="position:fixed;inset:0;z-index:5000;display:grid;place-items:center;background:#0a1220;color:#e8eef8;padding:24px;text-align:center"><div><b>${t('err.lib')}</b><p style="color:#9fb0c8;margin-top:8px">${t('err.libHint')}</p></div></div>`);
+  throw new Error('Leaflet tidak tersedia');
+}
+const CAT = {
+  showroom:{get label(){return t('cat.showroom')},color:'#ef4444'},
+  workshop:{get label(){return t('cat.workshop')},color:'#3b82f6'},
+  detailing:{get label(){return t('cat.detailing')},color:'#a855f7'},
+  hotel:{get label(){return t('cat.hotel')},color:'#facc15'}
+};
+const STATUS = {
+  verified:{get label(){return t('st.verified')},cls:'bg-emerald-500/20 text-emerald-300',op:1},
+  estimated:{get label(){return t('st.estimated')},cls:'bg-amber-500/20 text-amber-300',op:.85},
+  unsurveyed:{get label(){return t('st.unsurveyed')},cls:'bg-slate-500/30 text-slate-300',op:.6}
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+
+// ---------- data: CSV (Google Sheets atau file lokal)
+const CFG = Object.assign({unitsCsv:'',roadsCsv:'',waNumber:'',startPoints:{}}, window.BOS_CONFIG||{});
+const parseCSV = V.parseCSV;
+const list = s => String(s||'').split(/[;|]/).map(x=>x.trim()).filter(Boolean);
+/* Ambil CSV: versi BARU lebih dulu. Bila jaringan lambat (>4,5 dtk) atau mati, pakai salinan terakhir di perangkat
+   dan tetap menunggu versi baru di latar belakang (onLate dipanggil bila ternyata isinya berbeda). */
+async function fetchCSV(key, remoteUrl, localUrl, onLate){
+  const ck = 'bos-csv-'+key, ct = 'bos-csv-at-'+key;
+  const cached = () => { try{ const c = localStorage.getItem(ck); return c ? {text:c, at:+localStorage.getItem(ct)||0} : null; }catch(_){ return null; } };
+  const store = txt => { try{ localStorage.setItem(ck,txt); localStorage.setItem(ct,String(Date.now())); }catch(_){} };
+  const get = async (url, ms) => {
+    const ctl = new AbortController(), tm = setTimeout(()=>ctl.abort(), ms);
+    try{ const res = await fetch(url,{signal:ctl.signal,cache:'no-store'}); if(!res.ok) throw new Error('HTTP '+res.status);
+      const txt = await res.text(); if(!txt || /^\s*<(!doctype|html)/i.test(txt)) throw new Error('bukan CSV'); return txt; }
+    finally{ clearTimeout(tm); }
+  };
+  if(remoteUrl){
+    const p = get(remoteUrl, 20000);
+    try{
+      const txt = await Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error('lambat')),4500))]);
+      store(txt); return {text:txt, src:'sheets', at:Date.now()};
+    }catch(_){
+      const c = cached();
+      if(c){ p.then(txt => { store(txt); if(onLate && V.hash(txt)!==V.hash(c.text)) onLate(); }).catch(()=>{}); return {text:c.text, src:'cache', at:c.at}; }
+      try{ const txt = await p; store(txt); return {text:txt, src:'sheets', at:Date.now()}; }catch(__){}
+    }
+  }
+  const res = await fetch(localUrl,{cache:'no-cache'}); if(!res.ok) throw new Error('Gagal memuat '+localUrl);
+  return {text:await res.text(), src:'local', at:Date.now()};
+}
+let UNITS = [], ROADS = [], ROAD_META = [], dataSrc = '', dataVer = '', dataAt = 0, dataIssues = [];
+const onLate = () => toast(t('data.updated'),'ok',20000,()=>location.reload());
+try{
+  const [ur, rr] = await Promise.all([
+    fetchCSV('units', CFG.unitsCsv, 'data/units.csv', onLate),
+    fetchCSV('roads', CFG.roadsCsv, 'data/roads.csv', onLate).catch(()=>({text:'',src:'',at:0}))
+  ]);
+  const out = V.validate(parseCSV(ur.text), rr.text ? parseCSV(rr.text) : [], {area:CFG.area});
+  out.units.forEach(({row:r,lat,lng}) => UNITS.push({id:r.id, name:r.name, aliases:list(r.aliases),
+    block:r.block||'', codes:list(r.codes), ll:[lat,lng],
+    photo:r.photo||null, vacant:/^(1|true|ya|yes)$/i.test(r.vacant||''),
+    status:STATUS[r.status]?r.status:'unsurveyed', cat:CAT[r.cat]?r.cat:'showroom'}));
+  ROADS = out.roads; ROAD_META = out.roadMeta || []; dataIssues = out.issues;
+  dataSrc = ur.src; dataAt = ur.at; dataVer = 'd-' + V.hash(ur.text + '\n--\n' + rr.text);
+}catch(err){
+  document.body.insertAdjacentHTML('beforeend',`<div style="position:fixed;inset:0;z-index:5000;display:grid;place-items:center;background:#0a1220;color:#e8eef8;padding:24px;text-align:center"><div><b>${t('err.data')}</b><p style="color:#9fb0c8;margin-top:8px">${t('err.dataHint')}</p></div></div>`);
+  throw err;
+}
+const dataErr = dataIssues.filter(i=>i.level==='error'), dataWarn = dataIssues.filter(i=>i.level==='warn');
+if(dataIssues.length) console.warn('[BOS] Masalah data:', dataIssues);
+
+// ---------- data prep
+UNITS.forEach(u => {
+  u.codesText = u.codes.join(', ');
+  u.blockDisp = u.block.includes('…') ? u.codes[0] + ' – ' + u.codes[u.codes.length-1] : u.block;
+  u.hay = norm([u.name, ...u.aliases, u.block, u.codesText].join(' '));
+  u.nameN = norm(u.name);
+  u.cn = u.codes.map(c => c.toLowerCase());
+});
+function renderAboutData(){
+  $('#verApp').textContent = 'v' + APP_VERSION;
+  $('#verData').textContent = dataVer;
+  const when = dataAt ? new Date(dataAt).toLocaleString(LANG==='en'?'en-GB':'id-ID',{dateStyle:'medium',timeStyle:'short'}) : '—';
+  $('#verSrc').textContent = t('ver.src',{src:t('src.'+dataSrc), when});
+  $('#dataStat').textContent = t('data.stat',{n:UNITS.length, v:UNITS.filter(u=>u.status==='verified').length, src:t('src.'+dataSrc)})
+    + (dataErr.length ? ' ' + t('data.skipped',{n:dataErr.length}) : '') + (dataWarn.length ? ' ' + t('data.warns',{n:dataWarn.length}) : '');
+}
+
+// ---------- map
+const lats = UNITS.map(u=>u.ll[0]), lons = UNITS.map(u=>u.ll[1]);
+const bounds = L.latLngBounds([Math.min(...lats),Math.min(...lons)],[Math.max(...lats),Math.max(...lons)]);
+const fence = bounds.pad(0.35);
+const AREA_POLY = Array.isArray(CFG.areaPolygon) && CFG.areaPolygon.length>=3 ? CFG.areaPolygon : null;   // batas kawasan (config.js); kosong = kotak data + margin
+const inArea = p => AREA_POLY ? NIN.hybrid.pointInPolygon(p, AREA_POLY) : fence.contains(p);
+const COARSE = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+const canvasRenderer = L.canvas ? L.canvas({padding:.3}) : undefined;   // garis rute digambar di canvas, bukan SVG
+const FEATURE = Object.assign({GLOBAL_MAP:true, COMMUNITY_REPORTS:false, TRAFFIC_PROBES:false, TOMTOM_TRAFFIC:false, AUTO_REROUTE:true}, CFG.features||{});
+const MK = window.NIN && NIN.mapkit;
+const map = L.map('map',Object.assign({zoomControl:false,maxZoom:19,minZoom:2,worldCopyJump:true,zoomSnap:.5,zoomDelta:.5,wheelPxPerZoomLevel:90,
+  preferCanvas:true, renderer:canvasRenderer, markerZoomAnimation:false, fadeAnimation:!COARSE},
+  FEATURE.GLOBAL_MAP ? {} : {minZoom:15, maxZoom:20, maxBoundsViscosity:.6, maxBounds:bounds.pad(6)},   // GLOBAL_MAP=false → kembali terkunci ke kawasan
+  {
+  rotate:true, touchRotate:true, shiftKeyRotate:true, bearing:0, rotateControl:false}));   // opsi rotasi dibaca plugin leaflet-rotate (diabaikan bila plugin tidak ada)
+L.control.zoom({position:'bottomright'}).addTo(map);
+const ROT = window.NIN && NIN.rotate.init(map,{compass:$('#btnCompass'), follow:$('#btnFollow'), sign:(CFG.rotate||{}).sign,
+  onFollow:on => { if(on){ locate(false); toast(t('follow.on'),'info',2500); } }, onDenied:() => toast(t('follow.denied'),'warn',5000)});
+// Petak peta kawasan (zoom 17–19) dibundel di tiles/ (lihat tools/setup_offline.py); di luar itu memakai server OSM.
+let LOCAL_TILES = new Set();
+try{ const r = await fetch('tiles/manifest.json'); if(r.ok) LOCAL_TILES = new Set((await r.json()).files || []); }catch(_){}
+const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const BosTiles = L.TileLayer.extend({ getTileUrl(c){ const z = this._getZoomForUrl(), k = z+'/'+c.x+'/'+c.y; return LOCAL_TILES.has(k) ? 'tiles/'+k+'.png' : L.Util.template(OSM_URL,{z,x:c.x,y:c.y}); } });
+const TL = MK.tiles();
+const baseOsm = new BosTiles(TL.osm.url,{maxZoom:19,maxNativeZoom:19,updateWhenZooming:false,updateWhenIdle:true,keepBuffer:1,attribution:TL.osm.attribution});
+const baseSat = L.tileLayer(TL.esri.url,{maxZoom:19,maxNativeZoom:19,updateWhenZooming:false,updateWhenIdle:true,keepBuffer:1,attribution:TL.esri.attribution});
+let layerKind = 'osm'; try{ if(localStorage.getItem('nin-layer')==='sat') layerKind = 'sat'; }catch(_){}
+function setLayer(k){
+  layerKind = k; (k==='sat' ? baseSat : baseOsm).addTo(map); map.removeLayer(k==='sat' ? baseOsm : baseSat);
+  $('#btnLayers').setAttribute('aria-pressed', String(k==='sat')); try{ localStorage.setItem('nin-layer', k); }catch(_){}
+}
+setLayer(layerKind);
+if(map.attributionControl && map.attributionControl.addAttribution) map.attributionControl.addAttribution(TL.routingAttribution);
+if(L.control.scale) L.control.scale({metric:true, imperial:false, position:'bottomright'}).addTo(map);   // skala jarak metrik
+$('#btnLayers').onclick = () => setLayer(layerKind==='sat' ? 'osm' : 'sat');
+$('#btnHome').onclick = () => { if(ROT) ROT.reset(); map.fitBounds(bounds.pad(.05),{paddingTopLeft:[0,170],paddingBottomRight:[0,20],animate:!COARSE}); };
+map.fitBounds(bounds.pad(.05),{paddingTopLeft:[0,170],paddingBottomRight:[0,20]});
+
+(AREA_POLY ? L.polygon(AREA_POLY,{color:'#14b8a6',weight:1,dashArray:'6 6',fill:false,opacity:.6,interactive:false,renderer:canvasRenderer}) : L.rectangle(fence,{color:'#14b8a6',weight:1,dashArray:'6 6',fill:false,opacity:.5,interactive:false,renderer:canvasRenderer})).addTo(map);
+
+const pinSvg = (c, st, sel) => {
+  const op = STATUS[st].op, dash = st==='verified' ? '' : 'stroke-dasharray="2.2 1.6"';
+  return `<svg width="${sel?40:32}" height="${sel?50:40}" viewBox="0 0 30 38" style="opacity:${op}" aria-hidden="true"><path d="M15 36C15 36 3 22 3 14a12 12 0 0 1 24 0c0 8-12 22-12 22Z" fill="${c}" stroke="#fff" stroke-width="2" ${dash}/><circle cx="15" cy="14" r="4.5" fill="#fff"/></svg>`;
+};
+const UNIT_BY_ID = new Map(UNITS.map(u => [u.id, u]));
+const markers = new Map();      // dibuat malas: marker baru dibuat saat pertama kali perlu ditampilkan
+let selected = null, filter = 'all', searchIds = null, pickedFromSearch = false;
+// Area sentuh 46×46 px (lebih mudah diketuk) dengan pin di tengah-bawah
+function icon(u, sel){
+  const w = (sel?40:32)+14, h = (sel?50:40)+6;
+  return L.divIcon({className:'pin-wrap', html:`<div class="pin ${sel?'pin-sel':''}">${pinSvg(CAT[u.cat].color,u.status,sel)}</div>`, iconSize:[w,h], iconAnchor:[w/2,h]});
+}
+function markerFor(u){
+  let m = markers.get(u.id);
+  if(!m){ m = L.marker(u.ll,{icon:icon(u,false),title:u.name,keyboard:true,alt:u.name}); m.on('click', () => select(u.id, false)); markers.set(u.id,m); }
+  return m;
+}
+// Semua marker hidup di SATU grup cluster; tidak ada marker sebelum user mencari / memilih kategori.
+const clusterGroup = L.markerClusterGroup
+  ? L.markerClusterGroup({showCoverageOnHover:false, spiderfyOnMaxZoom:true, maxClusterRadius:56, disableClusteringAtZoom:19,
+      chunkedLoading:true, animate:!COARSE, animateAddingMarkers:false, removeOutsideVisibleBounds:true})
+  : L.layerGroup();
+clusterGroup.addTo(map);
+let shown = new Set();
+function wantedIds(){
+  const ids = searchIds ? searchIds.slice() : (filter==='all' ? [] : UNITS.filter(u => u.cat===filter).map(u => u.id));
+  if(selected && !ids.includes(selected)) ids.push(selected);
+  return ids;
+}
+function syncMarkers(){
+  const want = new Set(wantedIds()), rm = [], add = [];
+  shown.forEach(id => { if(!want.has(id)) rm.push(markerFor(UNIT_BY_ID.get(id))); });
+  want.forEach(id => { if(!shown.has(id)) add.push(markerFor(UNIT_BY_ID.get(id))); });
+  if(rm.length){ clusterGroup.removeLayers ? clusterGroup.removeLayers(rm) : rm.forEach(m => clusterGroup.removeLayer(m)); }
+  if(add.length){ clusterGroup.addLayers ? clusterGroup.addLayers(add) : add.forEach(m => clusterGroup.addLayer(m)); }
+  shown = want;
+}
+function setSelIcon(id, sel){ const m = markers.get(id), u = UNIT_BY_ID.get(id); if(m && u) m.setIcon(icon(u, sel)); }
+function fitUnits(list, extra){
+  if(!list.length) return;
+  map.fitBounds(L.latLngBounds(list.map(u => u.ll)).pad(.15), Object.assign({paddingTopLeft:[16,200],paddingBottomRight:[16,60],maxZoom:19,animate:!COARSE}, extra||{}));
+}
+
+// ---------- filter + chips
+const chipsEl = $('#chips');
+const CHIPS = ['all','showroom','workshop','detailing','hotel'];
+function renderChips(){
+  chipsEl.innerHTML = CHIPS.map(k => `<button data-k="${k}" aria-pressed="${k===filter}" class="chip glass rounded-full px-3.5 py-2 text-xs font-semibold ${k===filter?'active':''}">${k==='all'?t('chip.all'):CAT[k].label}</button>`).join('');
+}
+renderChips();
+chipsEl.addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if(!b) return;
+  filter = b.dataset.k; searchIds = null; pickedFromSearch = false;
+  renderChips(); syncMarkers(); renderSuggest();
+  if(filter!=='all') fitUnits(UNITS.filter(u => u.cat===filter));   // "Semua" = peta bersih, tanpa marker
+});
+function visible(u){ return filter==='all' || u.cat===filter; }
+syncMarkers();
+
+// ---------- search
+const q = $('#q'), sug = $('#suggest'), qClear = $('#qClear');
+function search(text, ignoreFilter){
+  const raw = text.trim(); if(!raw) return [];
+  const n = norm(raw);
+  const cm = raw.match(/^([a-j])\s*[-\s]?\s*(\d{1,2}[ab]?)$/i) || raw.match(/^([a-j]\d)\s*[-\s]?\s*(\d{1,2}[ab]?)$/i);
+  const res = [];
+  for(const u of UNITS){
+    if(!ignoreFilter && !visible(u)) continue;
+    let s = 0;
+    if(u.nameN===n) s = 100;
+    else if(u.nameN.startsWith(n)) s = 80;
+    else if(u.nameN.includes(n)) s = 60;
+    else if(u.hay.includes(n)) s = 40;
+    if(cm){
+      const L0 = cm[1].toLowerCase(), N0 = cm[2].toLowerCase();
+      if(u.cn.some(c => { const m = c.match(/^([a-z]\d?)-(\d+[ab]?)$/); return m && m[2]===N0 && (m[1]===L0 || m[1][0]===L0); })) s = Math.max(s, 90);
+      if(u.cn.includes(`${L0}-${N0}`)) s = 120;
+    }
+    if(s) res.push([s,u]);
+  }
+  return res.sort((a,b)=>b[0]-a[0] || a[1].name.localeCompare(b[1].name)).map(r=>r[1]);
+}
+function hl(text, term){
+  const t = term.trim(); if(!t) return esc(text);
+  const i = text.toLowerCase().indexOf(t.toLowerCase());
+  return i<0 ? esc(text) : esc(text.slice(0,i)) + '<mark>' + esc(text.slice(i,i+t.length)) + '</mark>' + esc(text.slice(i+t.length));
+}
+let sugList = [], sugIdx = -1;
+let gList = [], gState = 'idle', gTimer = null, gSeq = 0;      // hasil pencarian tempat umum (Nominatim/Photon)
+function renderSuggest(){
+  const text = q.value, g = FEATURE.GLOBAL_MAP && text.trim().length>=3;
+  qClear.classList.toggle('hidden', !text);
+  if(!text.trim()){ sug.classList.add('hidden'); sugList=[]; gList=[]; gState='idle'; return; }
+  sugList = search(text).slice(0,10); sugIdx = -1;
+  const row = (c,txt) => `<li data-h class="px-3 py-2.5 text-sm text-slate-400">${txt}</li>`;
+  let h = '';
+  if(sugList.length){
+    if(FEATURE.GLOBAL_MAP) h += `<li data-h class="sug-h">${t('sug.area')}</li>`;
+    h += sugList.map((u,i) => `
+    <li data-i="${i}" class="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/10">
+      <i class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${CAT[u.cat].color}"></i>
+      <div class="min-w-0 flex-1"><div class="text-sm font-semibold truncate">${hl(u.name,text)}</div>
+      <div class="text-xs text-slate-400 truncate">${esc(u.codesText||u.blockDisp||CAT[u.cat].label)}${u.aliases.length?' · '+esc(u.aliases.join(', ')):''}</div></div>
+      <span class="text-[0.6875rem] text-slate-400">${CAT[u.cat].label}</span></li>`).join('');
+  }
+  if(g){
+    h += `<li data-h class="sug-h">${t('sug.world')}</li>`;
+    if(gState==='wait' || gState==='loading') h += row(0,'⏳ '+t('sug.loading'));
+    else if(gState==='err') h += row(0,t('sug.err'));
+    else if(gState==='done') h += gList.length ? gList.map((p,i) => `
+    <li data-g="${i}" class="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/10"><span class="shrink-0">📍</span>
+      <div class="min-w-0 flex-1"><div class="text-sm font-semibold truncate">${esc(p.name||p.display)}</div><div class="text-xs text-slate-400 truncate">${esc(p.display)}</div></div></li>`).join('') : row(0,t('sug.none'));
+  }
+  if(!h) h = `<li class="px-3 py-3 text-sm text-slate-400">${t('nf')}</li>`;
+  sug.innerHTML = h; sug.classList.remove('hidden');
+}
+// pencarian tempat umum: debounce 600 ms; antrean ≥1 dtk, cache & retry ada di js/geocode.js
+function scheduleGlobal(){
+  clearTimeout(gTimer); const text = q.value.trim(), my = ++gSeq;
+  if(!FEATURE.GLOBAL_MAP || text.length<3){ gState='idle'; gList=[]; return; }
+  if(navigator.onLine===false){ gState='err'; return; }
+  gState = 'wait';
+  gTimer = setTimeout(async () => {
+    gState = 'loading';
+    try{ const c = map.getCenter(); const r = await NIN.geocode.search(text,{lang:LANG, bias:[c.lat,c.lng]}); if(my!==gSeq) return; gList = r; gState = 'done'; }
+    catch(e){ if(my!==gSeq) return; gState = 'err'; console.warn('[geocode] gagal', e); }
+    renderSuggest();
+  }, 600);
+}
+function pickPlace(p){
+  if(!p) return;
+  q.value = p.name || p.display; qClear.classList.remove('hidden'); sug.classList.add('hidden'); q.blur();
+  searchIds = null; pickedFromSearch = false; syncMarkers();
+  showPlace({ll:[p.lat,p.lng], name:p.name||p.display.split(',')[0], display:p.display, bbox:p.bbox}, true);
+}
+// marker pratinjau hasil pencarian (maks 10) muncul saat mengetik; dihapus saat teks dikosongkan
+let previewT = null;
+function previewMarkers(){
+  clearTimeout(previewT);
+  previewT = setTimeout(() => {
+    const has = q.value.trim() && sugList.length;
+    if(!pickedFromSearch){ searchIds = has ? sugList.map(u => u.id) : null; syncMarkers(); }
+  }, 150);
+}
+q.addEventListener('input', () => { pickedFromSearch = false; scheduleGlobal(); renderSuggest(); previewMarkers(); });
+q.addEventListener('focus', renderSuggest);
+q.addEventListener('keydown', e => {
+  if(e.key==='ArrowDown'){ e.preventDefault(); sugIdx=Math.min(sugIdx+1,sugList.length-1); mark(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); sugIdx=Math.max(sugIdx-1,0); mark(); }
+  else if(e.key==='Enter'){ e.preventDefault(); const u = sugList[Math.max(sugIdx,0)]; if(u) pick(u); else if(gList.length) pickPlace(gList[0]); }
+  else if(e.key==='Escape'){ sug.classList.add('hidden'); q.blur(); }
+});
+function mark(){ [...sug.children].forEach((li,i)=>li.classList.toggle('bg-white/10', i===sugIdx)); }
+sug.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if(li) { e.preventDefault(); pick(sugList[+li.dataset.i]); return; } const g = e.target.closest('li[data-g]'); if(g){ e.preventDefault(); pickPlace(gList[+g.dataset.g]); } });
+function pick(u){ q.value = u.name; qClear.classList.remove('hidden'); sug.classList.add('hidden'); q.blur(); searchIds = [u.id]; pickedFromSearch = true; select(u.id,true); }
+qClear.onclick = () => { q.value=''; gSeq++; gList=[]; gState='idle'; hidePlace(); searchIds = null; pickedFromSearch = false; renderSuggest(); syncMarkers(); q.focus(); };
+document.addEventListener('click', e => { if(!e.target.closest('#suggest') && e.target!==q) sug.classList.add('hidden'); });
+
+// ---------- mode security (?mode=security mengaktifkan & diingat di perangkat; ?mode=public menonaktifkan)
+let secMode = false;
+try{
+  const m = new URLSearchParams(location.search).get('mode');
+  if(m==='security') localStorage.setItem('bos-mode','security');
+  else if(m==='public') localStorage.removeItem('bos-mode');
+  secMode = localStorage.getItem('bos-mode')==='security';
+}catch(_){ secMode = new URLSearchParams(location.search).get('mode')==='security'; }
+function waNumber(raw){
+  let n = String(raw||'').replace(/\D/g,'');
+  if(!n) return '';
+  if(n.startsWith('0')) n = '62'+n.slice(1); else if(n.startsWith('8')) n = '62'+n;
+  return n;
+}
+function appBase(){ const u = new URL(location.href); u.search=''; u.hash=''; return u.href; }
+function waText(u){
+  const link = appBase()+'?unit='+encodeURIComponent(u.id);
+  const lines = [`📍 *${u.name}*`];
+  const bk = [u.blockDisp && 'Blok '+u.blockDisp, u.codesText && 'Kode '+u.codesText].filter(Boolean).join(' · ');
+  if(bk) lines.push(bk);
+  lines.push(CAT[u.cat].label);
+  lines.push('Peta: https://www.google.com/maps?q='+u.ll.join(','));
+  lines.push('Di aplikasi kawasan: '+link);
+  if(u.status!=='verified') lines.push('_(posisi perkiraan, bisa meleset puluhan meter)_');
+  lines.push('— NIN Navigator');
+  return lines.join('\n');
+}
+function shareWA(u, numRaw){
+  let raw = numRaw; if(raw===undefined){ try{ raw = localStorage.getItem('bos-wa') || ''; }catch(_){ raw=''; } }
+  const n = waNumber(raw || CFG.waNumber);
+  window.open((n ? 'https://wa.me/'+n : 'https://wa.me/')+'?text='+encodeURIComponent(waText(u)), '_blank', 'noopener');
+}
+
+// ---------- selection + bottom sheet
+const sheet = $('#sheet'), body = $('#sheetBody');
+function select(id, fly=true){
+  const u = UNIT_BY_ID.get(id); if(!u) return;
+  if(selected && selected!==id) setSelIcon(selected, false);
+  selected = id;
+  if((route && route.destId!==id) || (pendingDest && pendingDest!==id)) clearRoute();       // rute milik unit lain dibersihkan; rute unit yang sama dipertahankan
+  hidePlace(); syncMarkers(); setSelIcon(id, true);
+  renderSheet(u);
+  if(fly) focusUnit(u, 19, true);
+  try{ const url = new URL(location.href); url.searchParams.set('unit', id); history.replaceState(null,'',url); }catch(_){}
+}
+function setDock(){ requestAnimationFrame(()=>{ const h = sheet.offsetHeight; document.documentElement.style.setProperty('--dock', (h+16)+'px'); document.documentElement.style.setProperty('--dock0', (h-40)+'px'); if(selected){ const u=UNITS.find(x=>x.id===selected); focusUnit(u, map.getZoom()); } }); }
+function focusUnit(u, z, fly){
+  const h = sheet.classList.contains('open') ? sheet.offsetHeight : 0;
+  const p = map.project(u.ll, z).add([0, h/2 - 40]);
+  map.setView(map.unproject(p, z), z, {animate: fly && !COARSE});
+}
+// Menutup kartu unit TIDAK menyentuh rute (rute punya tombol “Hapus rute” sendiri).
+function closeSheet(){
+  sheet.classList.remove('open'); document.body.classList.remove('sheet-open');
+  document.documentElement.style.setProperty('--dock','112px'); document.documentElement.style.setProperty('--dock0','0px');
+  const was = selected; selected = null;
+  if(was) setSelIcon(was, false);
+  if(pickedFromSearch){ pickedFromSearch = false; searchIds = null; q.value = ''; qClear.classList.add('hidden'); sug.classList.add('hidden'); }
+  syncMarkers();                                    // hanya marker yang tidak relevan lagi yang dilepas; rute & marker lain utuh
+  try{ const url = new URL(location.href); url.searchParams.delete('unit'); history.replaceState(null,'',url); }catch(_){}
+}
+$('#sheetClose').onclick = closeSheet;
+map.on('click', closeSheet);
+
+function dist(a,b){ // meter
+  const R=6371000, rad=x=>x*Math.PI/180, dLat=rad(b[0]-a[0]), dLon=rad(b[1]-a[1]);
+  const h=Math.sin(dLat/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function fmtDist(m){ return m<1000 ? Math.round(m/5)*5 + ' m' : (m/1000).toFixed(1) + ' km'; }
+const distInfoHtml = d => `<div class="mt-3 text-xs text-slate-300 bg-white/5 rounded-xl px-3 py-2">${t('dist.info',{d:fmtDist(d),w:Math.max(1,Math.round(d/75)),c:Math.max(1,Math.round(d/250))})}</div>`;
+function renderSheet(u){
+  const c = CAT[u.cat], st = STATUS[u.status];
+  const photo = u.photo ? `<img src="${u.photo}" alt="${esc(t('photo.alt',{name:u.name}))}" loading="lazy" class="w-full h-36 max-h-[20dvh] object-cover rounded-2xl mb-3 bg-white/5" onerror="this.remove()">`
+    : `<div class="w-full h-20 rounded-2xl mb-3 grid place-items-center text-xs text-slate-400 bg-white/5 border border-dashed border-white/15">${t('photo.none')}</div>`;
+  let info = '';
+  if(userPos){
+    const d = dist(userPos,u.ll);
+    info = distInfoHtml(d);
+  }
+  body.innerHTML = `
+    ${photo}
+    <div class="flex items-start gap-2">
+      <div class="min-w-0 flex-1">
+        <h2 class="text-lg font-extrabold leading-tight">${esc(u.name)}</h2>
+        ${u.aliases.length?`<div class="text-xs text-slate-400 mt-0.5">${t('aka')}: ${esc(u.aliases.join(', '))}</div>`:''}
+      </div>
+      <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style="background:${c.color}33;color:${c.color}">${c.label}</span>
+    </div>
+    <dl class="grid grid-cols-2 gap-2 mt-3 text-xs">
+      <div class="bg-white/5 rounded-xl px-3 py-2"><dt class="text-slate-400">${t('block')}</dt><dd class="font-bold text-sm">${esc(u.blockDisp||'—')}</dd></div>
+      <div class="bg-white/5 rounded-xl px-3 py-2"><dt class="text-slate-400">${t('code')}</dt><dd class="font-bold text-sm">${esc(u.codesText||'—')}</dd></div>
+    </dl>
+    <div class="mt-2 flex flex-wrap gap-1.5"><span class="rounded-full px-2.5 py-1 text-xs font-semibold ${st.cls}">${st.label}</span>${u.vacant?'<span class="rounded-full px-2.5 py-1 text-xs font-semibold bg-sky-500/20 text-sky-300">'+t('vacant')+'</span>':''}</div>
+    <div id="distInfo">${info}</div>
+    <button id="btnLine" class="mt-3 w-full rounded-xl bg-teal-500 text-slate-950 font-bold py-4 text-base active:scale-[.98]">🧭 ${t('btn.inside')}</button>
+    <div id="routeInfo"></div>
+    ${secMode ? `<button id="btnWa" class="mt-2 w-full rounded-xl bg-emerald-500 text-slate-950 font-bold py-3 text-sm active:scale-[.98]">📲 Bagikan lokasi unit via WhatsApp</button>` : ''}
+    <div class="mt-2 flex items-center justify-center gap-4 text-xs">
+      <button id="btnRoute" class="text-slate-400 hover:text-slate-200 py-1.5 underline">↗ ${t('btn.external')}</button>
+      <button id="btnPano" class="text-slate-400 hover:text-slate-200 py-1.5">🌐 ${t('btn.pano')}</button>
+      <button id="btnShare" class="text-slate-400 hover:text-slate-200 py-1.5">🔗 ${t('btn.share')}</button>
+    </div>`;
+  sheet.classList.add('open'); document.body.classList.add('sheet-open'); setDock();
+  $('#btnRoute').onclick = () => openNav(u);
+  $('#btnPano').onclick = () => openPano(u.ll);
+  $('#btnLine').onclick = () => routeInside(u);
+  const bw = $('#btnWa'); if(bw) bw.onclick = () => shareWA(u);
+  if(route && route.destId===u.id){ const ri = $('#routeInfo'); if(ri) ri.innerHTML = route.infoHtml; }
+  $('#btnShare').onclick = async () => {
+    const url = new URL(location.href); url.searchParams.set('unit', u.id);
+    try{ if(navigator.share) await navigator.share({title:u.name+' — NIN Navigator', url:url.href}); else { await navigator.clipboard.writeText(url.href); toast(t('copied'),'ok'); } }catch(_){}
+  };
+}
+// ---------- routing: graf internal (js/graph.js, dari roads.csv) + penyedia online (js/routing.js). Konversi koordinat HANYA lewat NIN.routing.
+const NR = window.NIN && NIN.routing, NG = window.NIN && NIN.Graph;
+const RTC = Object.assign({mode:'auto', roadsVerified:false, maxSnapM:60}, CFG.routing||{});
+const GRAPH = NG.build(ROADS, ROAD_META, {maxSnapM:RTC.maxSnapM});
+// laporan unit yang TIDAK terjangkau dari gerbang mana pun (graf roads.csv terputus / unit jauh dari jalan) → console; Admin diberi tahu di mode security
+const UNREACHABLE = (() => { try{
+  const gs = NIN.hybrid.normGates(CFG.gates), rs = gs.map(g => GRAPH.reachFrom(g.ll,'foot')).filter(r => r && r.ok);
+  if(!rs.length) return [];
+  const bad = UNITS.filter(u => !rs.some(r => r.has(u.ll)));
+  if(bad.length) console.warn('[graf] '+bad.length+' unit tidak terjangkau dari gerbang mana pun:', bad.map(u => u.id+' '+u.name));
+  return bad;
+}catch(e){ return []; } })();
+const MODE_ICON = {car:'🚗', motor:'🏍', bike:'🚲', foot:'🚶'};
+let routeMode = 'foot'; try{ const m = localStorage.getItem('nin-route-mode'); if(NR.MODES.includes(m)) routeMode = m; }catch(_){}
+const rdist = (a,b) => NR.dist(a,b);
+let routeCrit = 'fastest'; try{ if(localStorage.getItem('nin-route-crit')==='shortest') routeCrit = 'shortest'; }catch(_){}
+let customStart = null, waitStartFor = null;       // customStart: titik awal pilihan pengguna ("Mulai dari sini"); waitStartFor: tujuan yang menunggu fix GPS pertama
+const placeLayer = L.layerGroup().addTo(map);      // marker titik awal (A) & tempat terpilih; terpisah dari routeLayer
+
+// titik awal: GPS (jika di dalam kawasan) atau titik QR (?from=pos|gate|lobby)
+const FROM_NAMES = {get pos(){return t('from.pos')}, get gate(){return t('from.gate')}, get lobby(){return t('from.lobby')}};
+let fromPt = null, fromMarker = null;
+(() => {
+  const k = new URLSearchParams(location.search).get('from');
+  if(!k || !FROM_NAMES[k]) return;
+  let p = CFG.startPoints && CFG.startPoints[k];
+  if(!p && k==='lobby'){ const c = UNITS.find(x=>x.id==='cabin'); if(c) p = c.ll; }
+  if(Array.isArray(p) && isFinite(p[0]) && isFinite(p[1])){
+    fromPt = {p, label: FROM_NAMES[k]};
+    fromMarker = L.marker(p,{icon:L.divIcon({className:'',html:'<div class="me-dot" style="background:#f59e0b;box-shadow:0 0 0 6px rgba(245,158,11,.28)"></div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false,zIndexOffset:900}).addTo(map).bindTooltip(t('here',{name:FROM_NAMES[k]}),{permanent:false});
+  }
+})();
+// ---------- rute: satu layer khusus (routeLayer) + satu objek status (route). Menghapus rute = clearLayers() + route=null.
+const routeLayer = L.layerGroup().addTo(map);
+let route = null;   // {destId, line, legs, markers, fromGps, last, infoHtml, src, mode, R, start}
+var pendingDest = null, pendingObj = null;   // tujuan rute yang sedang dicari
+let routeSeq = 0, lastOnline = 0;
+function clearRoute(keepStart){
+  if(window.NAV && NAV.active) NAV.stop();
+  routeSeq++; pendingDest = null;
+  if(!keepStart){ try{ localStorage.removeItem(LAST_KEY); }catch(_){} customStart = null; placeLayer.eachLayer && placeLayer.eachLayer(l => { if(l.__startA) placeLayer.removeLayer(l); }); }   // batalkan pencarian rute yang masih berjalan
+  routeLayer.clearLayers();
+  route = null;
+  $('#routeBar').classList.add('hidden'); $('#routeBarText').textContent = '';
+  $('#stepsList').innerHTML = ''; $('#stepsList').classList.add('hidden'); $('#stepsToggle').setAttribute('aria-expanded','false');
+  const ri = $('#routeInfo'); if(ri) ri.innerHTML = '';
+  $('#altRow').innerHTML = '';
+  syncLastBtn();
+}
+function fmtDur(sec){ const m = Math.max(1, Math.round(sec/60)); return m<60 ? m+' '+t('unit.min') : Math.floor(m/60)+' '+t('unit.h')+(m%60?' '+(m%60)+' '+t('unit.min'):''); }
+function fmtEta(sec){ const d = new Date(Date.now()+sec*1000); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+// Cari rute. Urutan: (jaringan jalan online sesuai moda) → (graf internal) → (pintu masuk + graf internal bila tepat di luar kawasan) → null.
+// TIDAK ADA garis lurus: bila semua gagal, hasilnya {fail:'…'} dan pemanggil menampilkan pesan + tombol Google Maps/Waze.
+async function computeRoute(start, u, mode, via){
+  const origin = start.p, dest = u.ll;
+  if(via){            // rute lewat titik penghindar (reroute jalan ditutup): hanya server OSRM, satu rute
+    const V = await NR.onlineVia([origin, via, dest], mode, {lang:LANG}); if(!V) return {fail:'via'};
+    const x = NR.ensureDirection(V, origin, dest); if(!x.legs) x.legs = [[origin,x.path[0]],[x.path[x.path.length-1],dest]];
+    x.mode = mode; x.origin = origin; x.dest = dest; x.src = 'online'; x.altList = [x]; return x;
+  }
+  // server rute publik kadang gagal sesaat: coba lagi (maks. 2×, jeda 1,5 dtk) sebelum dianggap gagal
+  const online = async (a, b, m) => {
+    if(RTC.mode==='local') return null;
+    for(let i=0; i<3; i++){
+      if(navigator.onLine===false) return null;
+      const r = await NR.online(a, b, m, {lang:LANG, criterion:routeCrit}); if(r) return r;
+      if(i<2) await new Promise(res => setTimeout(res, 1500));
+    }
+    return null;
+  };
+  const R = await NIN.hybrid.plan({origin, dest:{id:u.id, name:u.name, ll:dest}, mode, graph:GRAPH, gates:CFG.gates, inArea, online, criterion:routeCrit,
+    roadsVerified:RTC.roadsVerified, localOnly:RTC.mode==='local'});
+  if(R.fail) return R;
+  // 1–3 alternatif; tiap alternatif diperiksa arahnya (self-check): garis harus mulai di asal dan berakhir di tujuan
+  const alts = (R.altList && R.altList.length ? R.altList : R.alts && R.alts.length ? R.alts : [R]).slice(0,3).map(a => {
+    const x = a.segments ? a : NR.ensureDirection(a, origin, dest);
+    if(!x.legs) x.legs = [[origin,x.path[0]],[x.path[x.path.length-1],dest]];
+    x.mode = mode; x.origin = origin; x.dest = dest; x.src = x.src || R.src; return x;
+  });
+  alts.forEach(a => { a.altList = alts; });
+  return alts[0];
+}
+function routeTexts(R, start, u){
+  const dd = R.durTraffic || R.dur, dur = fmtDur(dd), summary = `${MODE_ICON[R.mode]} ${u.name}: ±${fmtDist(R.dist)} · ${dur} · ${t('eta')} ${fmtEta(dd)}`;
+  const note = R.src==='hybrid' ? t('inside.note.hybrid',{g:esc(R.gate.name)}) : R.src==='online' ? t('inside.note.online') : R.src==='gate' ? t('inside.note.gate') : t('inside.note');
+  const tn = (typeof TRAFFIC!=='undefined' && TRAFFIC && TRAFFIC.probesEnabledView && R.trafficChecked && (R.mode==='car'||R.mode==='motor')) ? `<br><span class="text-slate-400">${R.durTraffic ? t('traffic.extra',{m:Math.max(0,Math.round((R.durTraffic-R.dur)/60))}) : t('traffic.noData')}</span>` : '';
+  const mn = R.mode==='motor' ? `<br><span class="text-slate-400">${t('mode.motorNote')}</span>` : '';
+  const info = `<div class="mt-2 text-xs text-slate-300 bg-white/5 rounded-xl px-3 py-2">${MODE_ICON[R.mode]} ${t('inside.info',{from:esc(start.label),d:fmtDist(R.dist),w:dur})}<br><span class="text-slate-400">${note}</span>${tn}${mn}</div>`;
+  return {bar:summary, info: info + `<button id="btnRouteClear" class="mt-2 w-full rounded-xl bg-white/10 hover:bg-white/20 py-2.5 text-sm font-bold">${t('route.clear')}</button>`};
+}
+const abIcon = (c, ch) => L.divIcon({className:'', html:`<div class="ab-badge" style="background:${c}">${ch}</div>`, iconSize:[26,26], iconAnchor:[13,13]});
+function drawRoute(R, start, u){
+  const others = (R.altList||[]).map((a,i) => a===R ? null : L.polyline(a.path,{color:'#64748b',weight:6,opacity:.55,lineJoin:'round',renderer:canvasRenderer,interactive:true,className:'alt-line'}).addTo(routeLayer).on('click', () => selectAlt(i))).filter(Boolean);
+  const style = {color: R.src==='gate' ? '#16a34a' : '#14b8a6', weight:5, opacity:.95, lineJoin:'round', lineCap:'round', renderer:canvasRenderer, interactive:false};
+  let line, gateMk = null;
+  if(R.segments){            // hibrid: luar kawasan = biru solid, dalam kawasan = hijau putus-putus, penanda GATE di sambungan
+    const o = R.segments[0], i = R.segments[1];
+    line = L.polyline(o.path,{color:'#2563eb',weight:5,opacity:.95,lineJoin:'round',lineCap:'round',renderer:canvasRenderer,interactive:false}).addTo(routeLayer);
+    L.polyline(i.path,{color:'#16a34a',weight:5,opacity:.95,dashArray:'10 8',lineJoin:'round',lineCap:'round',renderer:canvasRenderer,interactive:false}).addTo(routeLayer);
+    gateMk = L.marker(R.gate.ll,{icon:L.divIcon({className:'',html:'<div class="ab-badge" style="background:#f59e0b;width:auto;padding:0 8px;border-radius:13px;font-size:11px">GATE</div>',iconSize:[48,26],iconAnchor:[24,13]}),interactive:false,keyboard:false,zIndexOffset:840}).addTo(routeLayer).bindTooltip(R.gate.name);
+  } else line = L.polyline(R.path, style).addTo(routeLayer);
+  const legs = R.legs.filter(g => rdist(g[0],g[1])>1.5).map(g => L.polyline(g,{color:'#14b8a6',weight:3,dashArray:'3 7',opacity:.9,renderer:canvasRenderer,interactive:false}).addTo(routeLayer));   // ujung: titik asal/tujuan → jalan terdekat
+  const A = L.marker(start.p,{icon:abIcon('#16a34a','A'),interactive:false,keyboard:false,zIndexOffset:850}).addTo(routeLayer);
+  const B = L.marker(u.ll,{icon:abIcon('#dc2626','B'),interactive:false,keyboard:false,zIndexOffset:860}).addTo(routeLayer);
+  return {line, legs, A, B, others, gateMk};
+}
+const STEP_ICON = {left:'←',right:'→','slight left':'↖','slight right':'↗','sharp left':'↙','sharp right':'↘',straight:'↑',uturn:'↶'};
+function stepIcon(s){ return s.type==='gate' ? '⛩' : s.type==='arrive' ? '⚑' : s.type==='depart' ? '●' : /roundabout|rotary/.test(s.type||'') ? '⟳' : (STEP_ICON[s.mod] || '↑'); }
+function renderSteps(){
+  const ul = $('#stepsList'); if(!route || !route.R){ ul.innerHTML=''; return; }
+  ul.innerHTML = route.R.steps.map((s,i) => `<li data-i="${i}"><span class="si">${stepIcon(s)}</span><span class="st">${esc(NR.stepText(s,LANG))}</span><b class="sd">${s.dist>=1 ? fmtDist(s.dist) : ''}</b></li>`).join('') || `<li><span class="st">${t('steps.none')}</span></li>`;
+}
+function renderModeRow(){ document.querySelectorAll('#modeRow [data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode===routeMode ? 'true':'false')); }
+function renderAlts(){
+  const list = route && route.R.altList || [], row = $('#altRow'), crit = $('#critRow');
+  const multi = list.length>1;
+  row.style.display = crit.style.display = multi ? '' : 'none';
+  row.innerHTML = multi ? list.map((a,i) => `<button data-alt="${i}" aria-pressed="${a===route.R}">${t('alt.n',{n:i+1})} · ${fmtDur(a.dur)} · ${fmtDist(a.dist)}</button>`).join('') : '';
+  crit.querySelectorAll('[data-crit]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.crit===routeCrit)));
+}
+function selectAlt(i){
+  if(!route) return; const list = route.R.altList, R = list[i]; if(!R) return;
+  const keepSteps = $('#stepsList').classList.contains('hidden');
+  applyRoute(R, route.start, route.dest); if(keepSteps) $('#stepsList').classList.add('hidden');
+}
+function applyRoute(R, start, u){
+  const tx = routeTexts(R, start, u), keep = route && route.fromGps, last = route && route.last;
+  routeLayer.clearLayers();                       // selalu bersihkan dulu: tidak ada garis lama yang tersisa
+  route = Object.assign(drawRoute(R, start, u), {destId:u.id, dest:u, fromGps:!!keep, last:last||null, infoHtml:tx.info, src:R.src, mode:R.mode, R, start});
+  $('#routeBarText').textContent = tx.bar; $('#routeBar').classList.remove('hidden');
+  const ri = $('#routeInfo'); if(ri) ri.innerHTML = tx.info;
+  renderModeRow(); renderSteps(); renderAlts();
+  console.assert(rdist(R.path[0], start.p) <= rdist(R.path[0], u.ll), '[route] titik pertama lebih dekat ke tujuan daripada ke asal');
+  if(typeof TRAFFIC!=='undefined' && TRAFFIC && (R.mode==='car'||R.mode==='motor')) trafficForRoute(R, start);
+  saveLast(R, start, u);
+}
+// ---------- rute terakhir: disimpan di perangkat (≤ 60 menit) agar tidak hilang saat halaman dimuat ulang
+const LAST_KEY = 'nin_last_route', LAST_MAX_MS = 60*60*1000;
+function saveLast(R, start, u){
+  try{
+    const o = {v:1, ts:Date.now(), start, dest:{id:u.id, name:u.name, ll:u.ll}, R:{path:R.path, steps:R.steps, dist:R.dist, dur:R.dur, legs:R.legs, segments:R.segments, gate:R.gate, src:R.src, mode:R.mode, provider:R.provider}};
+    const j = JSON.stringify(o); if(j.length < 1.5e6) localStorage.setItem(LAST_KEY, j);
+  }catch(_){}
+  syncLastBtn();
+}
+function loadLast(){ try{ const o = JSON.parse(localStorage.getItem(LAST_KEY)||'null'); return o && o.v===1 && o.R && o.R.path && o.R.path.length>1 && Date.now()-o.ts < LAST_MAX_MS ? o : null; }catch(_){ return null; } }
+function syncLastBtn(){ const b = $('#btnLastRoute'); if(b) b.classList.toggle('hidden', !!route || !loadLast()); }
+function restoreLast(auto){
+  const o = loadLast(); if(!o) return false;
+  const R = Object.assign({}, o.R); R.altList = [R]; R.origin = o.start.p; R.dest = o.dest.ll;
+  routeMode = o.R.mode || routeMode; renderModeRow(); applyRoute(R, o.start, o.dest);
+  try{ const x = JSON.parse(localStorage.getItem(LAST_KEY)); x.ts = o.ts; localStorage.setItem(LAST_KEY, JSON.stringify(x)); }catch(_){}   // jangan memperpanjang masa berlaku saat dipulihkan
+  map.fitBounds(L.latLngBounds(R.path).pad(.25),{paddingTopLeft:[16,200],paddingBottomRight:[16,60],maxZoom:19,animate:false});
+  toast(t(auto ? 'route.restored' : 'route.last'),'ok',4000); return true;
+}
+function openPano(ll){            // Street View lewat Google (tanpa kunci API); bila belum ada foto 360° di titik itu, Google menampilkan peta biasa
+  toast(t('pano.note'),'info',5000);
+  window.open('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+ll[0]+','+ll[1], '_blank', 'noopener');
+}
+let lastTrafficAt = 0;
+function trafficForRoute(R, start){                // ambil data lalu lintas koridor rute (maks. 1×/45 dtk) → ETA terkoreksi + warna rute
+  const fin = () => { if(!route || route.R!==R) return; R.trafficChecked = true; TRAFFIC.overlay(R, routeLayer); refreshRouteTexts(); };
+  if(Date.now()-lastTrafficAt < 45000){ TRAFFIC.routeInfo(R); return fin(); }
+  lastTrafficAt = Date.now(); TRAFFIC.refreshRoute(R, start.p).then(fin).catch(()=>{});
+}
+function routeFailed(F, start, u){
+  console.warn('[route] gagal', {unit:u.id, from:start.p, mode:routeMode, reason:F.fail, info:F.info});   // diperbaiki lewat jalur.html bila graf terputus
+  $('#routeBar').classList.add('hidden'); $('#routeBarText').textContent = '';
+  const out = !inArea(start.p);
+  if(!out && F.info && F.info.to){ map.flyTo(F.info.to, Math.max(map.getZoom(),19)); }          // arahkan ke titik jalan terdekat
+  toast(t(out ? 'route.unavail' : 'route.noGraph'), 'warn', 9000, () => openNav(u));
+  if(out) openNav(u);
+}
+async function routeInside(u){
+  let start = null, gps = false;
+  if(customStart) start = {p:customStart.p, label:customStart.label};              // titik awal pilihan pengguna ("Rute dari sini")
+  else if(userPos){ start = {p:userPos, label:t('me')}; gps = true; }              // lokasi pengguna dipakai di mana pun berada (juga di luar kawasan)
+  else if(fromPt) start = {p:fromPt.p, label:fromPt.label};
+  else {
+    const sp = CFG.startPoints || {}, d = (sp.gate && ['gate',sp.gate]) || (sp.pos && ['pos',sp.pos]);
+    if(d && Array.isArray(d[1])) start = {p:d[1], label:FROM_NAMES[d[0]]};
+  }
+  if(!start){ waitStartFor = u; toast(t('need.start'),'info'); locate(true); return; }
+  waitStartFor = null;
+  const prev = route && route.R ? {R:route.R, start:route.start, dest:route.dest, mode:route.mode} : null;   // cadangan: bila hitung ulang gagal, rute lama dikembalikan
+  clearRoute(true);                                   // bersihkan total sebelum menggambar ulang
+  const seq = ++routeSeq; pendingDest = u.id; pendingObj = u;
+  $('#routeBarText').textContent = '⏳ ' + t('route.finding'); $('#routeBar').classList.remove('hidden');
+  const R = await computeRoute(start, u, routeMode);
+  if(seq!==routeSeq) return;                      // pengguna menghapus / mengganti rute selagi menunggu
+  pendingDest = null;
+  if(R.fail){
+    if(prev && prev.dest){ routeMode = prev.mode; applyRoute(prev.R, prev.start, prev.dest); toast(t('route.keptOld'),'warn',7000); return; }   // jangan biarkan peta kosong
+    $('#routeBar').classList.add('hidden'); routeFailed(R, start, u); return;
+  }
+  hidePlace();
+  applyRoute(R, start, u);
+  route.fromGps = gps; route.last = gps ? userPos.slice() : null; route.startLabel = start.label;
+  if(sheet.classList.contains('open')) closeSheet();   // ringkasan, moda & langkah ada di bar rute; kartu unit tidak boleh menutupinya
+  map.fitBounds(L.latLngBounds(R.path.concat([start.p,u.ll])).pad(.25),{paddingTopLeft:[16,200],paddingBottomRight:[16,sheet.classList.contains('open')?sheet.offsetHeight+20:60],maxZoom:19,animate:false});
+}
+// Rute dari GPS diperbarui saat pengguna bergerak: jalur online paling sering tiap 15 dtk & >30 m; jalur lokal tiap >10 m.
+async function refreshRouteFromGps(){
+  if(window.NAV && NAV.active) return;             // saat bernavigasi, reroute ditangani js/nav.js
+  if(!route || !route.fromGps || !userPos) return;
+  const far = route.src==='online';
+  if(route.last && rdist(route.last, userPos) < (far ? 30 : 10)) return;
+  if(far && Date.now()-lastOnline < 15000) return;
+  const u = route.dest; if(!u) return;
+  route.last = userPos.slice(); lastOnline = Date.now();
+  const seq = ++routeSeq, st = {p:userPos.slice(), label:t('me')};
+  const R = await computeRoute(st, u, route.mode);
+  if(seq!==routeSeq || !route || R.fail) return;                       // gagal mencari ulang → pertahankan rute yang sudah ada
+  applyRoute(R, st, u);
+}
+$('#routeClear').onclick = () => { try{ localStorage.removeItem(LAST_KEY); }catch(_){} clearRoute(true); };   // hapus manual = buang juga rute tersimpan (perilaku titik awal tetap)
+$('#modeRow').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if(!b || b.dataset.mode===routeMode) return;
+  routeMode = b.dataset.mode; try{ localStorage.setItem('nin-route-mode', routeMode); }catch(_){}
+  renderModeRow();
+  const u = route ? route.dest : pendingObj;
+  if(u) routeInside(u);                                   // hitung ulang dengan profil moda baru (tanpa mencampur profil)
+});
+$('#stepsToggle').addEventListener('click', () => {
+  const ul = $('#stepsList'), open = ul.classList.toggle('hidden') === false;
+  $('#stepsToggle').setAttribute('aria-expanded', String(open)); $('#stepsToggle').textContent = t(open ? 'steps.hide' : 'steps.show');
+});
+$('#stepsList').addEventListener('click', e => {
+  const li = e.target.closest('li[data-i]'); if(!li || !route) return;
+  const st = route.R.steps[+li.dataset.i]; if(st && st.at) map.flyTo(st.at, Math.max(map.getZoom(),18));
+});
+function refreshRouteTexts(){            // ganti bahasa saat rute aktif
+  if(!route) return; const u = route.dest; if(!u) return;
+  const tx = routeTexts(route.R, route.start, u); route.infoHtml = tx.info;
+  $('#routeBarText').textContent = tx.bar; const ri = $('#routeInfo'); if(ri) ri.innerHTML = tx.info;
+  renderSteps(); $('#stepsToggle').textContent = t($('#stepsList').classList.contains('hidden') ? 'steps.show' : 'steps.hide');
+}
+$('#sheetBody').addEventListener('click', e => { if(e.target.closest('#btnRouteClear')) clearRoute(); });
+
+// ---------- pilih aplikasi navigasi (Google Maps / Waze)
+const navDlg = $('#navDlg'); window.navDlg = navDlg;
+function openNav(u){
+  const dest = u.ll[0]+','+u.ll[1];
+  $('#navUnit').textContent = u.name;
+  $('#navGoogle').href = 'https://www.google.com/maps/dir/?api=1&destination='+dest+'&travelmode=driving'+(userPos ? '&origin='+userPos.join(',') : '');
+  $('#navWaze').href = 'https://waze.com/ul?ll='+dest+'&navigate=yes&zoom=17';
+  navDlg.showModal();
+}
+navDlg.addEventListener('click', e => { if(e.target===navDlg || e.target.closest('a')) navDlg.close(); });
+
+// ---------- toast
+function toast(msg, kind='info', ms=5200, onClick){
+  const el = document.createElement('div');
+  const col = kind==='warn' ? 'border-amber-400/50' : kind==='ok' ? 'border-emerald-400/50' : 'border-white/15';
+  el.className = `toast glass ${col} rounded-xl px-4 py-2.5 text-xs sm:text-sm pointer-events-auto`;
+  el.textContent = msg; if(onClick){ el.style.cursor='pointer'; el.addEventListener('click', onClick); } $('#toasts').appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity=0; setTimeout(()=>el.remove(),320); }, ms);
+}
+
+// ---------- GPS + geofence
+let userPos = null, meMarker = null, accCircle = null, watchId = null, fenceState = null, firstFix = true;
+function locate(center){
+  if(!('geolocation' in navigator)){ toast(t('gps.none'),'warn'); return; }
+  if(watchId!==null){ if(userPos && center) map.flyTo(userPos, Math.max(map.getZoom(),19)); return; }
+  toast(t('gps.search'),'info',2500);
+  watchId = navigator.geolocation.watchPosition(p => {
+    userPos = [p.coords.latitude, p.coords.longitude];
+    if(window.REPORTS) REPORTS.onPosition(userPos, (p.coords.heading!=null && !isNaN(p.coords.heading) && (p.coords.speed||0) > 1.5) ? p.coords.heading : null);
+    const acc = p.coords.accuracy || 0;
+    if(!meMarker){
+      meMarker = L.marker(userPos,{icon:L.divIcon({className:'',html:'<div class="me-dot"></div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false,zIndexOffset:1000}).addTo(map);
+      accCircle = L.circle(userPos,{radius:acc,color:'#22d3ee',weight:1,fillOpacity:.08,interactive:false}).addTo(map);
+    } else { meMarker.setLatLng(userPos); accCircle.setLatLng(userPos).setRadius(acc); }
+    const inside = inArea(userPos);
+    if(inside !== fenceState){
+      fenceState = inside;
+      if(!inside){
+        const nearest = Math.round(dist(userPos, bounds.getCenter())/10)*10;
+        toast(t('gps.outside',{d:fmtDist(nearest)}),'warn',8000);
+      } else toast(t('gps.inside'),'ok');
+    }
+    if(firstFix){ firstFix=false; if(center && inside) map.flyTo(userPos,19); else if(center) map.fitBounds(L.latLngBounds([userPos,bounds.getCenter()]).pad(.2)); }
+    if(selected){ const u = UNITS.find(x=>x.id===selected); const di = $('#distInfo'); if(di){ const d=dist(userPos,u.ll); di.innerHTML = distInfoHtml(d); } }
+    if(waitStartFor){ const d = waitStartFor; waitStartFor = null; setTimeout(() => routeInside(d), 50); }
+    if(window.NAV && NAV.active) NAV.onPosition(p.coords);
+    if(ROT){ ROT.onGps(p.coords); if(ROT.follow) map.panTo(userPos,{animate:false}); }
+    refreshRouteFromGps();
+  }, err => {
+    watchId = null; firstFix = true;
+    toast(err.code===1 ? t('gps.denied') : t('gps.unavail'),'warn',6500);
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
+$('#btnGps').onclick = () => locate(true);
+
+// ---------- dialog cari cepat (security)
+const secDlg = $('#secDlg'), secQ = $('#secQ'), secWa = $('#secWa'), secList = $('#secList');
+window.secDlg = secDlg;
+if(secMode){
+  $('#btnSec').classList.remove('hidden');
+  try{ secWa.value = localStorage.getItem('bos-wa') || ''; }catch(_){}
+}
+function renderSec(){
+  const t = secQ.value.trim();
+  const res = t ? search(t,true).slice(0,30) : UNITS.filter(u=>u.status==='verified').sort((a,b)=>a.name.localeCompare(b.name)).slice(0,30);
+  $('#secCount').textContent = t ? res.length+' hasil' : 'Ketik untuk mencari · '+UNITS.length+' unit';
+  secList.innerHTML = res.length ? res.map(u => `
+    <li class="flex items-center gap-2 px-3 py-2.5" data-id="${esc(u.id)}">
+      <i class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${CAT[u.cat].color}"></i>
+      <button data-a="view" class="min-w-0 flex-1 text-left">
+        <div class="text-sm font-bold truncate">${hl(u.name,t)}</div>
+        <div class="text-xs text-slate-400 truncate">${esc([u.codesText||u.blockDisp, CAT[u.cat].label, u.status!=='verified'?'perkiraan':''].filter(Boolean).join(' · '))}</div>
+      </button>
+      <button data-a="wa" class="shrink-0 rounded-lg bg-emerald-500 text-slate-950 text-xs font-bold px-3 py-2" aria-label="Bagikan ${esc(u.name)} via WhatsApp">📲 WA</button>
+    </li>`).join('') : '<li class="px-4 py-6 text-sm text-slate-400">Tidak ditemukan. Coba nama lain atau kode blok (mis. “G 9”).</li>';
+}
+$('#btnSec').onclick = () => { secDlg.showModal(); renderSec(); setTimeout(()=>secQ.focus(),50); };
+secQ.addEventListener('input', renderSec);
+secQ.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); const li = secList.querySelector('li[data-id]'); if(li) shareWA(UNITS.find(x=>x.id===li.dataset.id), secWa.value); } });
+secWa.addEventListener('input', () => { try{ localStorage.setItem('bos-wa', secWa.value.trim()); }catch(_){} });
+secList.addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'); if(!b) return;
+  const u = UNITS.find(x=>x.id===b.closest('li').dataset.id); if(!u) return;
+  if(b.dataset.a==='wa') shareWA(u, secWa.value);
+  else { secDlg.close(); filter='all'; searchIds=[u.id]; pickedFromSearch=true; renderChips(); select(u.id,true); }
+});
+$('#secExit').onclick = () => { try{ localStorage.removeItem('bos-mode'); }catch(_){} location.href = appBase(); };
+secDlg.addEventListener('click', e => { if(e.target===secDlg) secDlg.close(); });
+
+// ---------- dialogs
+const about = $('#about'), denahDlg = $('#denahDlg'), prefDlg = $('#prefDlg');
+window.about = about; window.denahDlg = denahDlg; window.prefDlg = prefDlg;
+$('#btnAbout').onclick = () => about.showModal();
+$('#btnDenah').onclick = () => denahDlg.showModal();
+$('#btnPref').onclick = () => prefDlg.showModal();
+[about, denahDlg, prefDlg].forEach(d => d.addEventListener('click', e => { if(e.target===d) d.close(); }));
+document.addEventListener('keydown', e => { if(e.key==='Escape' && sheet.classList.contains('open') && !about.open && !denahDlg.open && !secDlg.open && !prefDlg.open && !navDlg.open) closeSheet(); });
+
+// ---------- tampilan: ukuran huruf, tema, bahasa (disimpan di perangkat)
+let prefs = {}; try{ prefs = JSON.parse(localStorage.getItem('bos-prefs')||'{}'); }catch(_){}
+const SIZES = {n:1, l:1.2, xl:1.4}, darkMq = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+function applyPrefs(){
+  const h = document.documentElement, th = prefs.theme || 'auto';
+  const light = th==='light' || (th==='auto' && darkMq && darkMq.matches);
+  h.classList.toggle('light', light); h.classList.toggle('dark', !light);
+  h.style.setProperty('--fs', SIZES[prefs.size] || 1);
+  const mt = document.querySelector('meta[name=theme-color]'); if(mt) mt.content = light ? '#f3f6fb' : '#0a1220';
+  document.querySelectorAll('#prefDlg .seg').forEach(g => { const cur = g.dataset.pref==='size' ? (prefs.size||'n') : g.dataset.pref==='theme' ? (prefs.theme||'auto') : g.dataset.pref==='reroute' ? (window.NAV ? NAV.mode() : 'ask') : LANG;
+    g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v===cur))); });
+}
+function applyI18n(){
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-html]').forEach(e => e.innerHTML = t(e.dataset.i18nHtml));
+  [['i18nPh','placeholder'],['i18nAria','aria-label'],['i18nTitle','title'],['i18nAlt','alt']].forEach(([d,a]) =>
+    document.querySelectorAll('[data-'+d.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())+']').forEach(e => e.setAttribute(a, t(e.dataset[d]))));
+  document.title = t('title');
+  renderChips(); renderAboutData(); if(q.value.trim()) renderSuggest();
+  if(selected){ const u = UNITS.find(x=>x.id===selected); if(u) renderSheet(u); }
+  if(typeof refreshRouteTexts==='function') refreshRouteTexts();
+  if(window.NAV) NAV.refreshTexts();
+}
+prefDlg.addEventListener('click', e => {
+  const b = e.target.closest('.seg button'); if(!b) return;
+  const k = b.parentElement.dataset.pref; if(k==='reroute'){ NAV.setMode(b.dataset.v); applyPrefs(); return; } prefs[k] = b.dataset.v;
+  try{ localStorage.setItem('bos-prefs', JSON.stringify(prefs)); }catch(_){}
+  if(k==='lang'){ LANG = b.dataset.v; applyI18n(); }
+  applyPrefs(); map.invalidateSize(); setDock();
+});
+if(darkMq) darkMq.addEventListener && darkMq.addEventListener('change', applyPrefs);
+applyPrefs(); applyI18n();
+
+// ---------- tempat umum (hasil pencarian global / titik tekan-tahan)
+let place = null;
+const pinPlace = L.divIcon({className:'', html:'<div class="ab-badge" style="background:#2563eb;width:30px;height:30px;line-height:24px;font-size:15px">📍</div>', iconSize:[30,30], iconAnchor:[15,15]});
+const dropFlag = (grp, flag) => { const del = []; grp.eachLayer && grp.eachLayer(l => { if(l[flag]) del.push(l); }); del.forEach(l => grp.removeLayer(l)); };
+const placeDest = () => ({id:'pt:'+MK.fmtCoord(place.ll), name:place.name, ll:place.ll});
+function showPlace(p, fly){
+  closeSheet(); place = p; dropFlag(placeLayer,'__place');
+  const m = L.marker(p.ll,{icon:pinPlace,interactive:false,keyboard:false,zIndexOffset:700}); m.__place = true; m.addTo(placeLayer);
+  $('#placeName').textContent = p.name; $('#placeAddr').textContent = p.display || MK.fmtCoord(p.ll);
+  $('#placeCard').classList.remove('hidden');
+  requestAnimationFrame(() => document.documentElement.style.setProperty('--dock', ($('#placeCard').offsetHeight + 24) + 'px'));   // tombol peta naik di atas kartu
+  if(fly){ if(p.bbox) map.fitBounds([[p.bbox[0],p.bbox[1]],[p.bbox[2],p.bbox[3]]],{maxZoom:17,paddingTopLeft:[16,200],paddingBottomRight:[16,190]}); else map.flyTo(p.ll, Math.max(map.getZoom(),16)); }
+}
+function hidePlace(){ if(place && !sheet.classList.contains('open')) document.documentElement.style.setProperty('--dock','112px'); place = null; $('#placeCard').classList.add('hidden'); dropFlag(placeLayer,'__place'); }
+function setCustomStart(ll, label){
+  customStart = {p:ll, label:label || t('start.custom')}; dropFlag(placeLayer,'__startA');
+  const m = L.marker(ll,{icon:abIcon('#16a34a','A'),interactive:false,keyboard:false,zIndexOffset:850}); m.__startA = true; m.addTo(placeLayer);
+  if(route) return routeInside(route.dest);                      // titik awal diganti saat rute aktif → hitung ulang
+  if(place) return routeInside(placeDest());
+  if(selected) return routeInside(UNIT_BY_ID.get(selected));
+  toast(t('start.set'),'info',6000);
+}
+const copyText = async (txt) => { try{ await navigator.clipboard.writeText(txt); toast(t('copied.coord'),'ok',2500); }catch(_){ toast(txt,'info',6000); } };
+$('#placeClose').onclick = hidePlace;
+$('#placeTo').onclick = () => { if(place) routeInside(placeDest()); };
+$('#placeFrom').onclick = () => { if(place) setCustomStart(place.ll, place.name); };
+$('#placePano').onclick = () => { if(place) openPano(place.ll); };
+$('#placeCopy').onclick = () => { if(place) copyText(MK.fmtCoord(place.ll)); };
+// menu klik-kanan / tekan-tahan di peta
+const ctxEl = $('#ctxMenu'); let ctxLL = null;
+function hideCtx(){ ctxEl.classList.add('hidden'); }
+// ---------- laporan komunitas (Fase 4): hanya bila flag COMMUNITY_REPORTS aktif
+let REPORTS = null;
+if(FEATURE.COMMUNITY_REPORTS && window.NIN && NIN.reportsUI){
+  const CH = {t, esc};
+  REPORTS = NIN.reportsUI.init({L, map, t, esc, toast, CFG, lang:()=>LANG, userPos:()=>userPos, routeAhead:()=>route && route.R ? route.R.path : null, consent:k=>NIN.consent.ask(CH, k)});
+  window.NIN_report = ll => REPORTS.open(ll);
+  window.REPORTS = REPORTS;
+}
+// ---------- Fase 5: lalu lintas komunitas + navigasi/reroute
+const TRAFFIC = (window.NIN && NIN.traffic && (FEATURE.TRAFFIC_PROBES || FEATURE.TOMTOM_TRAFFIC)) ? NIN.traffic.create({L, map, t, esc, toast, CFG, features:FEATURE, cfg:CFG.traffic, renderer:canvasRenderer}) : null;
+if(TRAFFIC) TRAFFIC.probesEnabledView = !!FEATURE.TRAFFIC_PROBES;
+const NAV = NIN.nav.create({t, esc, toast, cfg:CFG.reroute, features:FEATURE, lang:()=>LANG, getRoute:()=>route, userPos:()=>userPos,
+  recompute:(st,u,m,via)=>computeRoute(st,u,m,via), canVia:true, applyRoute:(R,st,u)=>applyRoute(R,st,u),
+  reports:()=>REPORTS ? REPORTS.reports() : [], traffic:TRAFFIC, stepIcon, stepText:s=>NR.stepText(s,LANG), fmtDist, fmtDur, fmtEta,
+  probe:p=>{ if(TRAFFIC) TRAFFIC.probe(p); }, openFallback:u=>openNav(u),
+  onStart:()=>{ if(ROT) ROT.setFollow(true); map.setZoom(Math.max(map.getZoom(),17)); if(userPos) map.panTo(userPos,{animate:false}); },
+  onStop:()=>{ if(ROT) ROT.setFollow(false); }});
+window.NAV = NAV; window.TRAFFIC = TRAFFIC;
+window.NIN_getRoute = () => route;      // akses baca untuk uji otomatis
+$('#navStart').onclick = () => { if(!route) return; locate(false); NAV.start(); };
+function syncNavPrefs(){
+  $('#prefVoice').checked = !!(NIN.voice && NIN.voice.enabled()); $('#prefVoice').disabled = !(NIN.voice && NIN.voice.supported);
+  const tr = !!TRAFFIC && TRAFFIC.available(); $('#prefTrafficRow').classList.toggle('hidden', !tr); $('#prefTrafficLegend').classList.toggle('hidden', !tr);
+  if(tr) $('#prefTraffic').checked = TRAFFIC.layerOn();
+  $('#prefProbesRow').classList.toggle('hidden', !(TRAFFIC && FEATURE.TRAFFIC_PROBES)); if(TRAFFIC) $('#prefProbes').checked = TRAFFIC.probesOn();
+  applyPrefs();
+}
+$('#prefVoice').onchange = e => { if(NIN.voice) NIN.voice.set(e.target.checked); NAV.refreshTexts(); };
+$('#prefTraffic').onchange = e => { if(TRAFFIC) TRAFFIC.setLayer(e.target.checked); };
+$('#prefProbes').onchange = async e => { if(TRAFFIC){ const on = await TRAFFIC.setProbes(e.target.checked); e.target.checked = !!on; } };
+$('#btnPref').addEventListener('click', syncNavPrefs);
+function showCtx(ll, cp){
+  ctxLL = [ll.lat, ll.lng];
+  const items = [['from','ctx.from'],['to','ctx.to']]; if(FEATURE.COMMUNITY_REPORTS) items.push(['report','ctx.report']); items.push(['copy','ctx.copy']);
+  ctxEl.innerHTML = `<div class="cc">${MK.fmtCoord(ctxLL)}</div>` + items.map(([k,key]) => `<button role="menuitem" data-k="${k}">${t(key)}</button>`).join('');
+  const r = map.getContainer().getBoundingClientRect(), x = r.left + (cp.x ?? cp[0]), y = r.top + (cp.y ?? cp[1]);
+  ctxEl.classList.remove('hidden');
+  ctxEl.style.left = Math.max(6, Math.min(x, innerWidth - ctxEl.offsetWidth - 6)) + 'px'; ctxEl.style.top = Math.max(6, Math.min(y, innerHeight - ctxEl.offsetHeight - 6)) + 'px';
+}
+ctxEl.addEventListener('click', e => {
+  const b = e.target.closest('button[data-k]'); if(!b || !ctxLL) return; hideCtx();
+  const nm = MK.fmtCoord(ctxLL, 5);
+  if(b.dataset.k==='from') setCustomStart(ctxLL, t('start.custom'));
+  else if(b.dataset.k==='to') routeInside({id:'pt:'+nm, name:t('dest.default')+' ('+MK.fmtCoord(ctxLL,4)+')', ll:ctxLL});
+  else if(b.dataset.k==='report'){ if(window.NIN_report) window.NIN_report(ctxLL); }
+  else copyText(nm);
+});
+if(MK) MK.longPress(map, showCtx);
+map.on('movestart zoomstart click', hideCtx);
+document.addEventListener('click', e => { if(!e.target.closest('#ctxMenu')) hideCtx(); }, true);
+// kriteria rute & pilihan alternatif
+$('#critRow').addEventListener('click', e => {
+  const b = e.target.closest('[data-crit]'); if(!b || !route) return;
+  routeCrit = b.dataset.crit; try{ localStorage.setItem('nin-route-crit', routeCrit); }catch(_){}
+  const list = route.R.altList.slice().sort((x,y) => routeCrit==='shortest' ? x.dist-y.dist : x.dur-y.dur); list.forEach(a => { a.altList = list; });
+  const keepSteps = $('#stepsList').classList.contains('hidden'); applyRoute(list[0], route.start, route.dest); if(keepSteps) $('#stepsList').classList.add('hidden');
+});
+$('#altRow').addEventListener('click', e => { const b = e.target.closest('[data-alt]'); if(b) selectAlt(+b.dataset.alt); });
+$('#routeShare').onclick = async () => {                       // lokasi GPS pengguna TIDAK ikut dibagikan; hanya titik awal yang dipilih sendiri
+  if(!route) return; const url = MK.buildShare(appBase(), customStart ? customStart.p : null, route.dest.ll, route.mode, route.dest.name);
+  try{ if(navigator.share) await navigator.share({title:'NIN Navigator', url}); else { await navigator.clipboard.writeText(url); toast(t('copied'),'ok'); } }catch(_){}
+};
+
+// ---------- deep link
+$('#btnLastRoute').onclick = () => restoreLast(false);
+const initial = new URLSearchParams(location.search).get('unit');
+if(initial && UNITS.some(u=>u.id===initial)) setTimeout(()=>{ select(initial,true); if(fromPt) setTimeout(()=>routeInside(UNITS.find(x=>x.id===initial)),900); },400);
+else if(fromPt) setTimeout(()=>{ map.flyTo(fromPt.p,19); toast(t('deeplink.from',{name:fromPt.label}),'info',6500); },500);
+
+// tautan rute: ?from=lat,lng&to=lat,lng&mode=car → langsung menghitung rute (from kosong = lokasi pengguna)
+(() => {
+  const SH = MK.parseShare(location.search); if(!SH.to) return;
+  if(SH.mode){ routeMode = SH.mode; renderModeRow(); }
+  if(SH.from) customStart = {p:SH.from, label:t('start.custom')};
+  const D = {id:'pt:'+MK.fmtCoord(SH.to), name:SH.toName || t('dest.default'), ll:SH.to};
+  setTimeout(() => routeInside(D), 700);
+})();
+
+// pulihkan rute terakhir bila halaman dibuka tanpa tautan unit/rute
+if(!new URLSearchParams(location.search).get('unit') && !new URLSearchParams(location.search).get('to') && !fromPt) setTimeout(() => { if(!route) restoreLast(true); else syncLastBtn(); }, 600); else syncLastBtn();
+
+// ---------- PWA: tombol pasang aplikasi
+let deferredInstall = null;
+const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+function showInstall(){
+  if(standalone) return;
+  const box = $('#installBox'); if(!box) return;
+  const can = !!deferredInstall;
+  $('#btnInstall').classList.toggle('hidden', !can);
+  $('#installIos').classList.toggle('hidden', !(isIOS && !can));
+  box.classList.toggle('hidden', !(can || isIOS));
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; showInstall(); });
+window.addEventListener('appinstalled', () => { deferredInstall = null; showInstall(); toast(t('install.done'),'ok'); });
+$('#btnInstall').onclick = async () => { if(!deferredInstall) return; deferredInstall.prompt(); try{ await deferredInstall.userChoice; }catch(_){} deferredInstall = null; showInstall(); };
+showInstall();
+
+// ---------- PWA
+// (didaftarkan langsung bila 'load' sudah lewat — pemuatan data di atas bersifat async, jadi event load sering sudah terjadi)
+if('serviceWorker' in navigator){ const reg = () => navigator.serviceWorker.register('sw.js').catch(()=>{}); document.readyState==='complete' ? reg() : window.addEventListener('load', reg); }
+})();
+</script>
+</body>
+</html>

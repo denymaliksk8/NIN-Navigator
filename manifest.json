@@ -1,0 +1,54 @@
+{
+  "name": "NIN Navigator",
+  "short_name": "NIN Navigator",
+  "description": "Navigasi dan direktori digital Kawasan Terpadu Bursa Otomotif Sunter & Cabin Hotel.",
+  "id": "/",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a1220",
+  "theme_color": "#0a1220",
+  "lang": "id",
+  "categories": [
+    "navigation",
+    "business"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "shortcuts": [
+    {
+      "name": "Cari unit",
+      "short_name": "Cari",
+      "url": "./?source=shortcut",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

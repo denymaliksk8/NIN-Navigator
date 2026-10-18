@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cetak QR — NIN Navigator</title>
+<script src="vendor/qrcode.js"></script>
+<style>
+  :root{--ink:#0a1220;--mut:#5b6b82;--acc:#0f9d8f;--line:#d6dde8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:#eef2f7}
+  .bar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:grid;gap:10px}
+  .bar h1{font-size:16px;margin:0}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  label{font-size:12px;color:var(--mut)}
+  input[type=text],input[type=url],select{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:0}
+  #base{flex:1 1 320px}
+  button{font:inherit;font-weight:700;font-size:14px;padding:9px 14px;border:0;border-radius:8px;background:var(--acc);color:#fff;cursor:pointer}
+  button.ghost{background:#e6ebf2;color:var(--ink)}
+  .hint{font-size:12px;color:var(--mut)}
+  .warn{color:#b45309}
+  main{padding:16px;display:grid;gap:16px;justify-items:center}
+  .page{width:210mm;min-height:297mm;background:#fff;padding:16mm;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.12);break-after:page}
+  .logos{display:flex;gap:10mm;align-items:center;justify-content:center;height:22mm}
+  .logos img{max-height:22mm;max-width:50mm;object-fit:contain}
+  .poster h2{font-size:34pt;line-height:1.1;margin:10mm 0 3mm;font-weight:900}
+  .poster .sub{font-size:16pt;color:var(--mut);margin:0 0 8mm}
+  .poster .qr{width:120mm;height:120mm;padding:6mm;border:2mm solid var(--ink);border-radius:8mm}
+  .poster .qr svg{width:100%;height:100%;display:block}
+  .poster .where{margin-top:8mm;font-size:20pt;font-weight:800;background:var(--ink);color:#fff;border-radius:6mm;padding:3mm 10mm}
+  .poster .url{margin-top:6mm;font-size:11pt;color:var(--mut);word-break:break-all}
+  .poster .steps{margin-top:6mm;font-size:13pt;display:flex;gap:8mm}
+  .poster .steps b{display:block;font-size:20pt;color:var(--acc)}
+  .labels{width:210mm;background:#fff;padding:10mm;display:grid;grid-template-columns:repeat(3,1fr);gap:4mm;box-shadow:0 2px 12px rgba(0,0,0,.12)}
+  .lab{border:.3mm dashed #9aa7ba;border-radius:3mm;padding:3mm;text-align:center;break-inside:avoid;height:62mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
+  .lab .qr{width:38mm;height:38mm}.lab .qr svg{width:100%;height:100%;display:block}
+  .lab b{font-size:10.5pt;line-height:1.15;display:block;max-height:2.4em;overflow:hidden}
+  .lab span{font-size:9pt;color:var(--mut)}
+  .lab small{font-size:7pt;color:var(--mut)}
+  @media print{
+    body{background:#fff}.bar{display:none}main{padding:0;gap:0}
+    .page,.labels{box-shadow:none;width:auto}
+    .page{min-height:0;height:297mm;padding:14mm}
+    @page{size:A4;margin:0}
+    body.only-labels .poster, body.only-posters .labels{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Cetak QR — NIN Navigator</h1>
+  <div class="row">
+    <label for="base">Alamat aplikasi</label>
+    <input id="base" type="url" inputmode="url" spellcheck="false">
+    <button id="print" type="button">🖨 Cetak</button>
+  </div>
+  <div class="row">
+    <label>Cetak:</label>
+    <select id="what"><option value="all">Poster lokasi + label unit</option><option value="posters">Poster lokasi saja (3 halaman)</option><option value="labels">Label unit saja</option></select>
+    <label for="filter">Filter label</label>
+    <input id="filter" type="text" placeholder="blok / nama, mis. G atau Starpro" style="width:230px">
+    <span id="count" class="hint"></span>
+  </div>
+  <div id="warn" class="hint"></div>
+</div>
+<main>
+  <section id="posters" class="posters" style="display:contents"></section>
+  <section id="labels" class="labels"></section>
+</main>
+<script>
+(async () => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dir = new URL('./', location.href).href;
+  $('#base').value = dir;
+  if(location.protocol==='file:') $('#warn').innerHTML = '<span class="warn">Halaman ini dibuka dari file lokal. Ganti “Alamat aplikasi” dengan URL aplikasi yang sudah online sebelum mencetak.</span>';
+  else if(/^(localhost|127\.|192\.168\.)/.test(location.hostname)) $('#warn').innerHTML = '<span class="warn">Alamat ini hanya dapat dibuka dari jaringan Anda. Buka halaman ini dari URL publik aplikasi, atau ganti alamat di atas, sebelum mencetak.</span>';
+
+  function qrSvg(text){
+    const q = qrcode(0,'M'); q.addData(text); q.make();
+    return q.createSvgTag({cellSize:4, margin:0, scalable:true});
+  }
+  function parseCSV(t){
+    const rows=[]; let r=[],f='',inQ=false; t=t.replace(/^﻿/,'');
+    for(let i=0;i<t.length;i++){ const c=t[i];
+      if(inQ){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else inQ=false; } else f+=c; }
+      else if(c==='"') inQ=true; else if(c===','){r.push(f);f='';}
+      else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n')i++; r.push(f);f=''; if(r.length>1||r[0]!=='')rows.push(r); r=[]; } else f+=c; }
+    if(f!==''||r.length){r.push(f);rows.push(r);}
+    const h=rows.shift().map(s=>s.trim().toLowerCase());
+    return rows.map(a=>Object.fromEntries(h.map((k,i)=>[k,(a[i]||'').trim()])));
+  }
+  let units = [];
+  try{
+    // pakai sumber yang sama dengan aplikasi (Sheets bila dikonfigurasi)
+    await new Promise(res => { const s=document.createElement('script'); s.src='config.js'; s.onload=s.onerror=res; document.head.appendChild(s); });
+    const cfg = window.BOS_CONFIG||{}; let txt = null;
+    if(cfg.unitsCsv){ try{ const r = await fetch(cfg.unitsCsv,{cache:'no-store'}); if(r.ok) txt = await r.text(); }catch(_){} }
+    if(!txt) txt = await (await fetch('data/units.csv')).text();
+    units = parseCSV(txt).filter(r=>r.id&&r.name).map(r=>({id:r.id,name:r.name,block:r.block,codes:(r.codes||'').split(/[;|]/).filter(Boolean)}));
+  }catch(e){ $('#warn').innerHTML += ' <span class="warn">Data unit gagal dimuat; label unit tidak tersedia.</span>'; }
+
+  const LOCS = [
+    ['pos','Pos Security','Tanya unit apa saja di kawasan'],
+    ['gate','Pintu Masuk','Cari showroom & unit sebelum masuk'],
+    ['lobby','Lobi Cabin Hotel','Cari showroom & unit dari lobi']
+  ];
+  const baseUrl = () => { let b = $('#base').value.trim(); if(!b) b = dir; try{ const u = new URL(b); u.search=''; u.hash=''; return u.href; }catch(_){ return dir; } };
+  function render(){
+    const b = baseUrl();
+    $('#posters').innerHTML = LOCS.map(([k,name,sub]) => {
+      const url = b + '?from=' + k;
+      return `<section class="page poster">
+        <div class="logos"><img src="logo-bos.png" alt=""><img src="logo-cabin.png" alt=""></div>
+        <h2>Cari showroom<br>& unit di sini</h2>
+        <p class="sub">${esc(sub)}. Arahkan kamera ponsel ke kode ini.</p>
+        <div class="qr">${qrSvg(url)}</div>
+        <div class="where">📍 ${esc(name)}</div>
+        <div class="steps"><div><b>1</b>Buka kamera</div><div><b>2</b>Arahkan ke QR</div><div><b>3</b>Cari unit & ikuti rute</div></div>
+        <div class="url">${esc(url)}</div>
+        <div class="logos" style="margin-top:auto;height:14mm"><img src="logo-nin.png" alt="" style="max-height:14mm"></div>
+      </section>`;
+    }).join('');
+    const f = $('#filter').value.trim().toLowerCase();
+    const list = units.filter(u => !f || (u.name+' '+u.block+' '+u.codes.join(' ')).toLowerCase().includes(f));
+    $('#labels').innerHTML = list.map(u => `<div class="lab"><div class="qr">${qrSvg(b+'?unit='+encodeURIComponent(u.id))}</div><div><b>${esc(u.name)}</b><span>${esc(u.codes.join(', ')||u.block||'')}</span></div><small>Scan: lokasi & rute</small></div>`).join('');
+    $('#count').textContent = list.length + ' label unit';
+  }
+  function mode(){ document.body.classList.toggle('only-posters',$('#what').value==='posters'); document.body.classList.toggle('only-labels',$('#what').value==='labels');
+    $('#posters').style.display = $('#what').value==='labels' ? 'none' : 'contents'; $('#labels').style.display = $('#what').value==='posters' ? 'none' : ''; }
+  ['input','change'].forEach(ev => { $('#base').addEventListener(ev,render); $('#filter').addEventListener(ev,render); });
+  $('#what').addEventListener('change',mode);
+  $('#print').onclick = () => window.print();
+  render(); mode();
+})();
+</script>
+</body>
+</html>

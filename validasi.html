@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pemeriksa Data — NIN Navigator</title>
+<style>
+  :root{--bg:#f3f6fb;--card:#fff;--ink:#0f172a;--mut:#475569;--line:#d6dde8;--acc:#0f766e;--err:#b91c1c;--errbg:#fee2e2;--warn:#92400e;--warnbg:#fef3c7;--ok:#047857;--okbg:#d1fae5}
+  @media (prefers-color-scheme:dark){:root{--bg:#0a1220;--card:#111c30;--ink:#e8eef8;--mut:#9fb0c8;--line:#26344d;--acc:#5eead4;--err:#fca5a5;--errbg:#450a0a;--warn:#fcd34d;--warnbg:#422006;--ok:#6ee7b7;--okbg:#022c22}}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  main{max-width:60rem;margin:0 auto;padding:1rem}
+  h1{font-size:1.4rem;margin:.2rem 0}
+  p.sub{color:var(--mut);margin:.2rem 0 1rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem;margin-bottom:1rem}
+  fieldset{border:0;padding:0;margin:0 0 .75rem}
+  legend{font-weight:700;margin-bottom:.4rem}
+  label.r{display:flex;gap:.5rem;align-items:center;padding:.35rem 0}
+  textarea{width:100%;min-height:7rem;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:10px;padding:.6rem;background:var(--bg);color:var(--ink)}
+  input[type=file]{max-width:100%}
+  button{font:inherit;font-weight:700;padding:.65rem 1rem;border:0;border-radius:10px;background:var(--acc);color:#fff;cursor:pointer}
+  @media (prefers-color-scheme:dark){button{color:#04121a}}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.6rem}
+  .stat{border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem}
+  .stat b{display:block;font-size:1.5rem;line-height:1.2}
+  .stat span{color:var(--mut);font-size:.85rem}
+  .stat.bad b{color:var(--err)} .stat.warn b{color:var(--warn)} .stat.good b{color:var(--ok)}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+  .tw{overflow-x:auto}
+  .b{display:inline-block;border-radius:999px;padding:.1rem .6rem;font-size:.78rem;font-weight:700}
+  .b.error{background:var(--errbg);color:var(--err)} .b.warn{background:var(--warnbg);color:var(--warn)}
+  .banner{border-radius:12px;padding:.8rem 1rem;font-weight:700;margin-bottom:.8rem}
+  .banner.good{background:var(--okbg);color:var(--ok)} .banner.bad{background:var(--errbg);color:var(--err)} .banner.warn{background:var(--warnbg);color:var(--warn)}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+  .mut{color:var(--mut)}
+  a{color:var(--acc)}
+  :focus-visible{outline:3px solid #facc15;outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">← Kembali ke aplikasi</a></p>
+  <h1>Pemeriksa Data</h1>
+  <p class="sub">Periksa tab <b>units</b> dan <b>roads</b> sebelum diterbitkan: koordinat tertukar, titik di luar kawasan, id ganda, dan salah ketik lain. Aturan yang sama dipakai aplikasi dan pemantau otomatis.</p>
+
+  <section class="card" aria-label="Sumber data">
+    <fieldset>
+      <legend>Sumber data</legend>
+      <label class="r"><input type="radio" name="src" value="live" checked> <span><b>Yang sedang dipakai aplikasi</b> <span class="mut" id="liveDesc"></span></span></label>
+      <label class="r"><input type="radio" name="src" value="local"> <span>File lokal <code>data/units.csv</code> &amp; <code>data/roads.csv</code></span></label>
+      <label class="r"><input type="radio" name="src" value="paste"> <span>Tempel / unggah CSV sendiri (mis. hasil <i>File → Unduh → CSV</i> dari Sheets, sebelum dipublikasikan)</span></label>
+    </fieldset>
+    <div id="pasteBox" hidden>
+      <p class="mut" style="margin:.2rem 0">units.csv — <input type="file" id="fUnits" accept=".csv,text/csv"></p>
+      <textarea id="tUnits" placeholder="id,name,aliases,block,codes,lat,lng,photo,status,cat,vacant&#10;s01,Sonic,…" aria-label="Isi CSV units"></textarea>
+      <p class="mut" style="margin:.6rem 0 .2rem">roads.csv (opsional) — <input type="file" id="fRoads" accept=".csv,text/csv"></p>
+      <textarea id="tRoads" placeholder="road_id,seq,lat,lng,note" aria-label="Isi CSV roads"></textarea>
+    </div>
+    <div class="row" style="margin-top:.6rem">
+      <button id="go">Periksa sekarang</button>
+      <button id="photos" class="ghost" disabled>Periksa foto papan nama</button>
+      <button id="copy" class="ghost" disabled>Salin laporan</button>
+    </div>
+  </section>
+
+  <section id="result" hidden>
+    <div id="banner" class="banner" role="status"></div>
+    <div class="card"><div class="stats" id="stats"></div><p class="mut" style="margin:.8rem 0 0" id="meta"></p></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:.4rem">
+        <b>Daftar masalah</b>
+        <label><span class="mut">Tampilkan </span>
+          <select id="flt"><option value="all">semua</option><option value="error">hanya kesalahan</option><option value="warn">hanya peringatan</option></select></label>
+      </div>
+      <div class="tw"><table><thead><tr><th>Tingkat</th><th>Tab</th><th>Baris</th><th>id</th><th>Masalah</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <p class="mut" id="none" hidden>Tidak ada masalah. 🎉</p>
+      <p class="mut" style="font-size:.85rem;margin-bottom:0"><b>Kesalahan</b> = baris tidak dipakai aplikasi sampai diperbaiki. <b>Peringatan</b> = baris tetap dipakai tetapi perlu dicek. Nomor baris sama dengan nomor baris di Google Sheets (baris 1 = judul kolom).</p>
+    </div>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="validate.js"></script>
+<script>
+(() => {
+'use strict';
+const V = window.BOSValidate, CFG = Object.assign({unitsCsv:'',roadsCsv:''}, window.BOS_CONFIG||{});
+const $ = s => document.querySelector(s), esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+$('#liveDesc').textContent = CFG.unitsCsv ? '— Google Sheets (dari config.js)' : '— file lokal (config.js belum berisi tautan Sheets)';
+document.querySelectorAll('input[name=src]').forEach(r => r.onchange = () => { $('#pasteBox').hidden = r.value!=='paste' || !r.checked; });
+const readFile = (inp, ta) => inp.onchange = async () => { if(inp.files[0]) ta.value = await inp.files[0].text(); };
+readFile($('#fUnits'), $('#tUnits')); readFile($('#fRoads'), $('#tRoads'));
+
+async function load(url){
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error(url.split('?')[0].slice(0,60)+' → HTTP '+res.status+(res.status===404?' (tautan salah atau penerbitan dihentikan)':''));
+  const txt = await res.text();
+  if(/^\s*<(!doctype|html)/i.test(txt)) throw new Error('Tautan mengembalikan halaman web, bukan CSV — Sheets mungkin tidak lagi dipublikasikan.');
+  return txt;
+}
+let report = '', units = [];
+async function run(){
+  const mode = document.querySelector('input[name=src]:checked').value;
+  let ut = '', rt = '', where = '';
+  try{
+    if(mode==='paste'){ ut = $('#tUnits').value; rt = $('#tRoads').value; where = 'CSV yang ditempel/diunggah'; if(!ut.trim()) throw new Error('Isi CSV units dulu.'); }
+    else if(mode==='local' || !CFG.unitsCsv){ ut = await load('data/units.csv'); rt = await load('data/roads.csv').catch(()=>''); where = 'file lokal'; }
+    else { ut = await load(CFG.unitsCsv); rt = CFG.roadsCsv ? await load(CFG.roadsCsv).catch(e => { alert('Tab roads gagal dimuat: '+e.message); return ''; }) : await load('data/roads.csv').catch(()=>''); where = 'Google Sheets'; }
+  }catch(e){ show({fatal:e.message}); return; }
+  const out = V.validate(V.parseCSV(ut), rt.trim() ? V.parseCSV(rt) : [], {area:CFG.area});
+  show({out, ut, rt, where});
+}
+function show({fatal, out, ut, rt, where}){
+  $('#result').hidden = false;
+  const banner = $('#banner'), stats = $('#stats');
+  if(fatal){ banner.className='banner bad'; banner.textContent='✖ Gagal memuat: '+fatal; stats.innerHTML=''; $('#rows').innerHTML=''; $('#meta').textContent=''; $('#copy').disabled=true; $('#photos').disabled=true; report='Gagal memuat: '+fatal; return; }
+  const errs = out.issues.filter(i=>i.level==='error'), warns = out.issues.filter(i=>i.level==='warn');
+  units = out.units;
+  banner.className = 'banner ' + (errs.length ? 'bad' : warns.length ? 'warn' : 'good');
+  banner.textContent = errs.length ? `✖ ${errs.length} kesalahan — perbaiki sebelum diterbitkan` : warns.length ? `⚠ Tidak ada kesalahan, tetapi ${warns.length} peringatan perlu dicek` : '✔ Data bersih — aman diterbitkan';
+  const totalRows = V.parseCSV(ut).length;
+  stats.innerHTML = [
+    ['', totalRows, 'baris unit di sumber'], ['good', out.units.length, 'unit dipakai aplikasi'],
+    [errs.length?'bad':'', errs.length, 'kesalahan (diabaikan)'], [warns.length?'warn':'', warns.length, 'peringatan'], ['', out.roads.length, 'jalur valid']
+  ].map(([c,n,l]) => `<div class="stat ${c}"><b>${n}</b><span>${l}</span></div>`).join('');
+  $('#meta').innerHTML = `Sumber: <b>${esc(where)}</b> · Versi data: <code>d-${V.hash(ut+'\n--\n'+rt)}</code> · Pusat kawasan (median): <code>${out.area.center ? out.area.center.map(x=>x.toFixed(6)).join(', ') : '—'}</code>, batas ${out.area.radiusM} m · Diperiksa ${new Date().toLocaleString('id-ID')}`;
+  issues = out.issues.slice(); renderRows();
+  $('#copy').disabled = false; $('#photos').disabled = !out.units.some(u=>u.row.photo);
+  report = [banner.textContent, ...out.issues.map(i => `[${i.level==='error'?'KESALAHAN':'PERINGATAN'}] ${i.sheet} baris ${i.line}${i.id?' ('+i.id+')':''}: ${i.msg}`)].join('\n');
+}
+let issues = [];
+function renderRows(){
+  const f = $('#flt').value, list = issues.filter(i => f==='all' || i.level===f)
+    .sort((a,b)=> (a.level===b.level?0:a.level==='error'?-1:1) || a.sheet.localeCompare(b.sheet) || a.line-b.line);
+  $('#rows').innerHTML = list.map(i => `<tr><td><span class="b ${i.level}">${i.level==='error'?'Kesalahan':'Peringatan'}</span></td><td>${esc(i.sheet)}</td><td>${i.line||'—'}</td><td>${esc(i.id)}</td><td>${esc(i.msg)}</td></tr>`).join('');
+  $('#none').hidden = list.length>0;
+}
+$('#flt').onchange = renderRows;
+$('#go').onclick = run;
+$('#copy').onclick = async () => { try{ await navigator.clipboard.writeText(report); $('#copy').textContent='Tersalin ✓'; setTimeout(()=>$('#copy').textContent='Salin laporan',1800); }catch(_){ prompt('Salin laporan:', report); } };
+$('#photos').onclick = async () => {
+  const btn = $('#photos'); btn.disabled = true; btn.textContent = 'Memeriksa…';
+  const bad = await Promise.all(units.filter(u=>u.row.photo).map(u => new Promise(res => { const im = new Image(); im.onload = () => res(null); im.onerror = () => res(u); im.src = u.row.photo; })));
+  bad.filter(Boolean).forEach(u => issues.push({sheet:'units', line:u.row.__line, id:u.row.id, level:'warn', code:'foto-hilang', msg:'Foto "'+u.row.photo+'" tidak ditemukan / tidak bisa dibuka.'}));
+  report += '\n' + bad.filter(Boolean).map(u=>`[PERINGATAN] units baris ${u.row.__line} (${u.row.id}): foto "${u.row.photo}" tidak ditemukan.`).join('\n');
+  renderRows(); btn.textContent = bad.filter(Boolean).length ? bad.filter(Boolean).length+' foto bermasalah' : 'Semua foto ada ✓';
+};
+run();
+})();
+</script>
+</body>
+</html>
